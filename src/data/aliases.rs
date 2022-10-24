@@ -280,7 +280,6 @@ where
 
 impl<M: ListIter<(usize, usize)>> ListIter<(usize, usize)> for Transpose<M>
 where
-    M::Item: Zero,
     for<'a> Iter<'a, &'a M, (usize, usize)>: IntoIterator<Item = &'a M::Item>,
 {
     fn map<F: FnMut(&M::Item) -> M::Item>(&self, f: F) -> Self {

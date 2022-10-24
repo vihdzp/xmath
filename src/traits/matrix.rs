@@ -2,6 +2,8 @@
 //!
 //!
 
+use crate::data::array::Array;
+
 use super::basic::*;
 use std::marker::PhantomData;
 

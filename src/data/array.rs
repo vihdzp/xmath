@@ -70,7 +70,7 @@ impl<T, const N: usize> IntoIterator for Array<T, N> {
 }
 
 impl<'a, T, const N: usize> IntoIterator for Iter<'a, &'a Array<T, N>, usize> {
-    type Item = T;
+    type Item = &'a T;
     type IntoIter = std::slice::Iter<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -81,11 +81,11 @@ impl<'a, T, const N: usize> IntoIterator for Iter<'a, &'a Array<T, N>, usize> {
 impl<'a, C, T: ListIter<C>, const N: usize> IntoIterator
     for Iter<'a, &'a Array<T, N>, (usize, C)>
 {
-    type Item = T;
+    type Item = &'a T::Item;
     type IntoIter = std::slice::Iter<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.as_ref().iter()
+        todo!()
     }
 }
 
