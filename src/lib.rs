@@ -13,10 +13,10 @@
 //! ## Design
 //!
 //! χ-math is built out of a large hierarchy of traits. For instance, an
-//! [`AddGroup`](crate::traits::AddGroup) is an
-//! [`AddMonoid`](crate::traits::AddMonoid), which itself implements
-//! [`Add`](crate::traits::Add) and [`Zero`](crate::traits::Zero). Each
-//! successive trait implements new methods, or asserts new facts about the
+//! [`AddGroup`](crate::traits::basic::AddGroup) is an
+//! [`AddMonoid`](crate::traits::basic::AddMonoid), which itself implements
+//! [`Add`](crate::traits::basic::Add) and [`Zero`](crate::traits::basic::Zero).
+//! Each successive trait implements new methods, or asserts new facts about the
 //! type, or both.
 //!
 //! **This crate uses unsafe code. Erroneous implementations of the traits in

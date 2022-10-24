@@ -1,35 +1,27 @@
-//! Defines traits which provide functionality for lists.
+//! Defines traits which provide functionality for lists and matrices.
 //!
+//! We consider two basic kinds of lists:
 //!
-
-use crate::data::array::Array;
+//! - Statically sized lists such as [`Array`](crate::data::array::Array), with
+//!   a backing `[T; N]`.
+//! - Dynamically sized lists such as [`Poly`](crate::data::poly::Poly), with a
+//!   backing `Vec`.
+//!
+//! Other lists can then be built by nesting these, or via wrapper types such as
+//! [`Transpose`](crate::data::matrix::Transpose) on these.
+//!
+//! Correctly managing these two kinds of lists under the same interface is a
+//! subtle matter. See [`List`] for more details.
 
 use super::basic::*;
-use std::marker::PhantomData;
-
-/// A struct on which to implement iterators that go over entries of lists.
-#[repr(transparent)]
-pub struct Iter<'a, T: 'a, C>(pub T, PhantomData<&'a C>);
-
-impl<'a, T: 'a, C> AsRef<T> for Iter<'a, T, C> {
-    fn as_ref(&self) -> &T {
-        &self.0
-    }
-}
-
-impl<'a, T: 'a, C> AsMut<T> for Iter<'a, T, C> {
-    fn as_mut(&mut self) -> &mut T {
-        &mut self.0
-    }
-}
-
-impl<'a, T: 'a, C> Iter<'a, T, C> {
-    pub fn new(t: T) -> Self {
-        Self(t, PhantomData)
-    }
-}
 
 /// Represents a structure with a notion of coordinates or coefficients.
+///
+/// Note that a list can be indexed by more than one kind of coefficient. For
+/// instance, [`MatrixMN`](crate::data::matrix::MatrixMN) can be indexed by
+/// either `usize` or `(usize, usize)`.
+///
+/// ## Valid coefficients
 ///
 /// The type of coefficients doesn't necessarily need to exhaust the list. As
 /// such, we consider a set of *valid coefficients*, being those that can be
@@ -42,10 +34,11 @@ impl<'a, T: 'a, C> Iter<'a, T, C> {
 /// - `None`: *ghost entries*, are a stand-in for some other value which depends
 ///   on the type.
 ///
-/// As an example, in the [`Poly`] that represents `2 + 3x`, the coefficient `3`
-/// of x is a present entry, while the coefficient `0` of x² is a ghost entry,
-/// as it's not stored in memory. Nevertheless, since `Poly` is
-/// dynamically-sized, it's still possible to write to the x² coefficient.
+/// As an example, in the [`Poly`](crate::data::poly::Poly) that represents
+/// `2 + 3x`, the coefficient `3` of x is a present entry, while the coefficient
+/// `0` of x² is a ghost entry, as it's not stored in memory. Nevertheless,
+/// since `Poly` is dynamically-sized, it's still possible to write to the x²
+/// coefficient.
 pub trait List<C> {
     /// The type of entries in the list.
     type Item;
@@ -78,18 +71,43 @@ pub trait List<C> {
     fn coeff_set(&mut self, i: C, x: Self::Item);
 }
 
-/// A [`List`] with iterator capabilities.
-pub trait ListIter<C>: List<C>
-where
-    for<'a> Iter<'a, &'a Self, C>: IntoIterator<Item = &'a Self::Item>,
-{
-    // for<'a> PairIter<'a, &'a Self, C>:
-    // IntoIterator<Item = (&'a Self::Item, &'a Self::Item)>,
+/// A dynamically typed iterator.
+///
+/// This is used in the type signature of [`ListIter::iter`]. Ideally this
+/// wouldn't be necessary, and we could just require an [`IntoIterator`]
+/// implementation on some dummy type `Iter<'a, &'a Self, C>`. Unfortunately,
+/// implementing this for wrapper types such as [`Transpose`] invokes an old and
+/// unfixed [compiler bug](https://github.com/rust-lang/rust/issues/37748).
+pub struct BoxIter<'a, T>(Box<dyn Iterator<Item = T> + 'a>);
 
-    /// Iterates over all entries of the list in some order.
-    fn iter(&self) -> <Iter<&Self, C> as IntoIterator>::IntoIter {
-        Iter::new(self).into_iter()
+impl<'a, T> BoxIter<'a, T> {
+    pub fn new<I: Iterator<Item = T> + 'a>(i: I) -> Self {
+        Self(Box::new(i))
     }
+}
+
+impl<'a, T> Iterator for BoxIter<'a, T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+}
+
+/// A [`List`] with iterator capabilities.
+pub trait ListIter<C>: List<C> {
+    /// Iterates over all entries of the list in some order.
+    fn iter(&self) -> BoxIter<&Self::Item>;
+
+    /// Iterates over all pairs of entries of two lists, such that at least one
+    /// of them is present, in some order.
+    ///
+    /// If either entry is a ghost entry, a reference to it handled by the
+    /// iterator should be returned.
+    fn pairwise<'a>(
+        &'a self,
+        x: &'a Self,
+    ) -> BoxIter<(&'a Self::Item, &'a Self::Item)>;
 
     /// Maps all present entries through a function.
     fn map<F: FnMut(&Self::Item) -> Self::Item>(&self, f: F) -> Self;
@@ -127,7 +145,6 @@ where
 pub trait Module<C>: AddGroup + ListIter<C>
 where
     Self::Item: Ring,
-    for<'a> Iter<'a, &'a Self, C>: IntoIterator<Item = &'a Self::Item>,
 {
     /// Scalar multiplication.
     fn smul(&self, x: &Self::Item) -> Self {
@@ -166,14 +183,9 @@ impl Dim for Inf {}
 /// The implementation of [`FromIterator`] must write the coefficients in order,
 /// interpreting `None` as zeros. It must stop reading from the iterator once
 /// no more entries can be written.
-///
-/// We recognize two kinds of linear modules. These are:
-///
-/// - Statically sized, meaning that there's some compile-time
 pub trait LinearModule: Module<usize> + FromIterator<Self::Item>
 where
     Self::Item: Ring,
-    for<'a> Iter<'a, &'a Self, usize>: IntoIterator<Item = &'a Self::Item>,
 {
     /// Whether the module is statically or dynamically sized.
     type DimType: Dim;
@@ -229,11 +241,13 @@ impl Neg for Direction {
     }
 }
 
+/// A trait for matrices.
+///
+/// Matrices are just [`Module`]s that are indexed by two coordinates, with some
+/// extra methods that allow us to do computations on them.
 pub trait Matrix: Module<(usize, usize)>
 where
     Self::Item: Ring,
-    for<'a> Iter<'a, &'a Self, (usize, usize)>:
-        IntoIterator<Item = &'a Self::Item>,
 {
     /// Whether the height is statically or dynamically sized.
     type HeightType: Dim;

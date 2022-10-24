@@ -1,3 +1,5 @@
+use crate::traits::{matrix::Matrix, basic::*};
+
 /// Computes the addition of two matrices and writes the output in a new
 /// matrix. No size check is performed.
 ///
@@ -13,9 +15,6 @@ pub fn madd_trim<
 ) -> K
 where
     M::Item: Ring,
-    for<'a> Iter<'a, &'a M, (usize, usize)>: IntoIterator<Item = &'a M::Item>,
-    for<'a> Iter<'a, &'a N, (usize, usize)>: IntoIterator<Item = &'a N::Item>,
-    for<'a> Iter<'a, &'a K, (usize, usize)>: IntoIterator<Item = &'a K::Item>,
 {
     K::from_fn(
         m.height().max(n.height()),
@@ -61,9 +60,6 @@ pub fn madd_gen<
 ) -> K
 where
     M::Item: Ring,
-    for<'a> Iter<'a, &'a M, (usize, usize)>: IntoIterator<Item = &'a M::Item>,
-    for<'a> Iter<'a, &'a N, (usize, usize)>: IntoIterator<Item = &'a N::Item>,
-    for<'a> Iter<'a, &'a K, (usize, usize)>: IntoIterator<Item = &'a K::Item>,
 {
     if M::HEIGHT == N::HEIGHT
         && M::HEIGHT == K::HEIGHT
@@ -91,9 +87,6 @@ pub fn mmul_trim<
 ) -> K
 where
     M::Item: Ring,
-    for<'a> Iter<'a, &'a M, (usize, usize)>: IntoIterator<Item = &'a M::Item>,
-    for<'a> Iter<'a, &'a N, (usize, usize)>: IntoIterator<Item = &'a N::Item>,
-    for<'a> Iter<'a, &'a K, (usize, usize)>: IntoIterator<Item = &'a K::Item>,
 {
     K::from_fn(m.height(), n.width(), |i, j| {
         let mut z = M::Item::zero();
@@ -136,9 +129,6 @@ pub fn mmul_gen<
 ) -> K
 where
     M::Item: Ring,
-    for<'a> Iter<'a, &'a M, (usize, usize)>: IntoIterator<Item = &'a M::Item>,
-    for<'a> Iter<'a, &'a N, (usize, usize)>: IntoIterator<Item = &'a N::Item>,
-    for<'a> Iter<'a, &'a K, (usize, usize)>: IntoIterator<Item = &'a K::Item>,
 {
     if M::HEIGHT == K::HEIGHT && M::WIDTH == N::HEIGHT && N::WIDTH == K::WIDTH {
         mmul_trim::<M, N, K>(m, n)

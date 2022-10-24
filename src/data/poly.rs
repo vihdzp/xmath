@@ -471,10 +471,15 @@ impl<T: Zero> List<usize> for Poly<T> {
     }
 }
 
-impl<T: Zero> ListIter<usize> for Poly<T>
-where
-    for<'a> Iter<'a, &'a Poly<T>, usize>: IntoIterator<Item = &'a T>,
-{
+impl<T: Zero> ListIter<usize> for Poly<T> {
+    fn iter(&self) -> BoxIter<&Self::Item> {
+        BoxIter::new(self.as_slice().iter())
+    }
+
+    fn pairwise(&self, x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
+        todo!()
+    }
+
     fn map<F: FnMut(&T) -> T>(&self, f: F) -> Self {
         self.as_slice().iter().map(f).collect()
     }
@@ -507,10 +512,7 @@ where
     }*/
 }
 
-impl<T: Ring> Module<usize> for Poly<T>
-where
-    for<'a> Iter<'a, &'a Poly<T>, usize>: IntoIterator<Item = &'a T>,
-{
+impl<T: Ring> Module<usize> for Poly<T> {
     fn smul(&self, x: &T) -> Self {
         if x.is_zero() {
             Self::zero()
@@ -545,10 +547,7 @@ impl<T: Zero> FromIterator<T> for Poly<T> {
     }
 }
 
-impl<T: Ring> LinearModule for Poly<T>
-where
-    for<'a> Iter<'a, &'a Poly<T>, usize>: IntoIterator<Item = &'a T>,
-{
+impl<T: Ring> LinearModule for Poly<T> {
     type DimType = Inf;
     const DIM: Self::DimType = Inf;
 

@@ -266,22 +266,18 @@ impl<M: List<(usize, usize)>> List<(usize, usize)> for Transpose<M> {
     }
 }
 
-impl<'a, C, M: ListIter<C>> IntoIterator for Iter<'a, &'a Transpose<M>, C>
-where
-    for<'b> Iter<'b, &'b M, C>: IntoIterator<Item = &'b M::Item>,
-{
-    type Item = &'a M::Item;
-    type IntoIter = <Iter<'a, &'a M, C> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        Iter::new(self.0.as_ref()).into_iter()
+impl<M: ListIter<(usize, usize)>> ListIter<(usize, usize)> for Transpose<M> {
+    fn iter(&self) -> BoxIter<&Self::Item> {
+        self.as_ref().iter()
     }
-}
 
-impl<M: ListIter<(usize, usize)>> ListIter<(usize, usize)> for Transpose<M>
-where
-    for<'a> Iter<'a, &'a M, (usize, usize)>: IntoIterator<Item = &'a M::Item>,
-{
+    fn pairwise<'a>(
+        &'a self,
+        x: &'a Self,
+    ) -> BoxIter<(&'a Self::Item, &'a Self::Item)> {
+        self.as_ref().pairwise(x.as_ref())
+    }
+
     fn map<F: FnMut(&M::Item) -> M::Item>(&self, f: F) -> Self {
         Self(self.0.map(f))
     }
@@ -329,7 +325,7 @@ impl<T: One> One for Transpose<T> {
 
 impl<T: Neg> Neg for Transpose<T> {
     fn neg(&self) -> Self {
-        todo!()
+        Self(self.0.neg())
     }
 }
 
@@ -367,7 +363,6 @@ impl<T: AddGroup> AddGroup for Transpose<T> {}
 impl<M: Module<(usize, usize)>> Module<(usize, usize)> for Transpose<M>
 where
     Self::Item: Ring,
-    for<'a> Iter<'a, &'a M, (usize, usize)>: IntoIterator<Item = &'a M::Item>,
 {
     fn smul(&self, x: &M::Item) -> Self {
         Self(self.0.smul(x))
@@ -381,7 +376,6 @@ where
 impl<M: Matrix> Matrix for Transpose<M>
 where
     M::Item: Ring,
-    for<'a> Iter<'a, &'a M, (usize, usize)>: IntoIterator<Item = &'a M::Item>,
 {
     type HeightType = M::WidthType;
     type WidthType = M::HeightType;

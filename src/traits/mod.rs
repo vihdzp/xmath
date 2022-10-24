@@ -17,12 +17,13 @@
 //!   same outputs.
 //! - Functions always return the same values as default implementations, when
 //!   these exist.
-//! - Any valid inputs must return a valid output without invoking undefined
-//!   behavior.
+//! - Any valid inputs must return a valid output without panicking or invoking
+//!   undefined behavior.
 //!
 //! This last condition restricts the possible trait implementations quite
 //! heavily. For instance, `u8` can't implement [`Add`](basic::Add) since
-//! addition can overflow.
+//! addition can overflow. We make a sole exception for running out of memory,
+//! with the understanding that it should only happen in extreme cases.
 
 pub mod basic;
 pub mod matrix;

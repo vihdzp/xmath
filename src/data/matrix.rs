@@ -8,6 +8,7 @@
 
 use super::array::Array;
 use super::poly::Poly;
+use crate::algs::matrix::*;
 use crate::traits::matrix::*;
 use crate::{data::aliases::Transpose, traits::basic::*};
 
@@ -27,24 +28,18 @@ impl<C, V: List<C>, const N: usize> List<(usize, C)> for Array<V, N> {
     }
 }
 
-impl<'a, C, V: ListIter<C>, const N: usize> IntoIterator
-    for Iter<'a, &'a Array<V, N>, (usize, C)>
-where
-    for<'b> Iter<'b, &'b V, C>: IntoIterator<Item = &'b V::Item>,
-{
-    type Item = &'a V::Item;
-    type IntoIter = std::iter::Empty<&'a V::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        todo!()
-    }
-}
-
 impl<C, V: Module<C>, const N: usize> ListIter<(usize, C)> for Array<V, N>
 where
     V::Item: Ring,
-    for<'a> Iter<'a, &'a V, C>: IntoIterator<Item = &'a V::Item>,
 {
+    fn iter(&self) -> BoxIter<&Self::Item> {
+        BoxIter::new(self.as_ref().iter().flat_map(|v| v.iter()))
+    }
+
+    fn pairwise(&self, x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
+        todo!()
+    }
+
     fn map<F: FnMut(&V::Item) -> V::Item>(&self, mut f: F) -> Self {
         Self(std::array::from_fn(|i| self[i].map(|x| f(x))))
     }
@@ -72,18 +67,14 @@ where
     }*/
 }
 
-impl<C, V: Module<C>, const N: usize> Module<(usize, C)> for Array<V, N>
-where
-    V::Item: Ring,
-    for<'a> Iter<'a, &'a V, C>: IntoIterator<Item = &'a V::Item>,
+impl<C, V: Module<C>, const N: usize> Module<(usize, C)> for Array<V, N> where
+    V::Item: Ring
 {
 }
 
 impl<V: LinearModule, const N: usize> Matrix for Array<V, N>
 where
     V::Item: Ring,
-    for<'a> Iter<'a, &'a V, usize>: IntoIterator<Item = &'a V::Item>,
-    for<'a> Iter<'a, &'a V, (usize, usize)>: IntoIterator<Item = &'a V::Item>,
 {
     type HeightType = usize;
     type WidthType = V::DimType;
@@ -149,17 +140,16 @@ pub type MatrixMN<T, const M: usize, const N: usize> = Array<Array<T, N>, M>;
 
 impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
     /// Adds two statically sized matrices.
-    pub fn madd(&self, _m: &Self) -> Self {
-        todo!() // madd_gen::<Self, Self, Self>(self, m)
+    pub fn madd(&self, m: &Self) -> Self {
+        madd_gen(self, m)
     }
 
     /// Multiplies two statically sized matrices.
     pub fn mmul<const K: usize>(
         &self,
-        _m: &MatrixMN<T, N, K>,
+        m: &MatrixMN<T, N, K>,
     ) -> MatrixMN<T, M, K> {
-        todo!()
-        //       mmul_gen(self, m)
+        mmul_gen(self, m)
     }
 
     /// Transmutes a matrix as another matrix of the same size. The size check
@@ -238,9 +228,15 @@ impl<C, V: List<C> + Zero> List<(usize, C)> for Poly<V> {
 impl<C, V: Module<C>> ListIter<(usize, C)> for Poly<V>
 where
     V::Item: Ring,
-    for<'a> Iter<'a, &'a V, C>: IntoIterator<Item = &'a V::Item>,
-    for<'a> Iter<'a, &'a Poly<V>, (usize, C)>: IntoIterator<Item = &'a V::Item>,
 {
+    fn iter(&self) -> BoxIter<&Self::Item> {
+        BoxIter::new(self.as_slice().iter().flat_map(|v| v.iter()))
+    }
+
+    fn pairwise(&self, x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
+        todo!()
+    }
+
     fn map<F: FnMut(&V::Item) -> V::Item>(&self, mut f: F) -> Self {
         self.as_slice().iter().map(|v| v.map(|x| f(x))).collect()
     }
@@ -275,22 +271,11 @@ where
     }*/
 }
 
-impl<C, V: Module<C>> Module<(usize, C)> for Poly<V>
-where
-    V::Item: Ring,
-    for<'a> Iter<'a, &'a V, C>: IntoIterator<Item = &'a V::Item>,
-    for<'a> Iter<'a, &'a Poly<V>, usize>: IntoIterator<Item = &'a V::Item>,
-    for<'a> Iter<'a, &'a Poly<V>, (usize, C)>: IntoIterator<Item = &'a V::Item>,
-{
-}
+impl<C, V: Module<C>> Module<(usize, C)> for Poly<V> where V::Item: Ring {}
 
 impl<V: LinearModule> Matrix for Poly<V>
 where
     V::Item: Ring,
-    for<'a> Iter<'a, &'a V, usize>: IntoIterator<Item = &'a V::Item>,
-    for<'a> Iter<'a, &'a Poly<V>, usize>: IntoIterator<Item = &'a V::Item>,
-    for<'a> Iter<'a, &'a Poly<V>, (usize, usize)>:
-        IntoIterator<Item = &'a V::Item>,
 {
     type HeightType = Inf;
     type WidthType = V::DimType;
@@ -350,13 +335,13 @@ pub type MatrixDyn<T> = Poly<Poly<T>>;
 
 impl<T: Ring> MatrixDyn<T> {
     /// Adds two dynamically sized matrices.
-    pub fn madd(&self, _m: &Self) -> Self {
-        todo!() //madd_gen(self, m)
+    pub fn madd(&self, m: &Self) -> Self {
+        madd_gen(self, m)
     }
 
     /// Multiplies two dynamically sized matrices.
-    pub fn mmul<const K: usize>(&self, _m: &Self) -> Self {
-        todo!() //  mmul_gen(self, m)
+    pub fn mmul<const K: usize>(&self, m: &Self) -> Self {
+        mmul_gen(self, m)
     }
 }
 

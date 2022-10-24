@@ -2,7 +2,7 @@
 
 use crate::traits::{
     basic::*,
-    matrix::{Iter, LinearModule, List, ListIter, Module},
+    matrix::{BoxIter, LinearModule, List, ListIter, Module},
 };
 
 /// A statically-sized array of elements of a single type.
@@ -66,26 +66,6 @@ impl<T, const N: usize> IntoIterator for Array<T, N> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
-    }
-}
-
-impl<'a, T, const N: usize> IntoIterator for Iter<'a, &'a Array<T, N>, usize> {
-    type Item = &'a T;
-    type IntoIter = std::slice::Iter<'a, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.as_ref().iter()
-    }
-}
-
-impl<'a, C, T: ListIter<C>, const N: usize> IntoIterator
-    for Iter<'a, &'a Array<T, N>, (usize, C)>
-{
-    type Item = &'a T::Item;
-    type IntoIter = std::slice::Iter<'a, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        todo!()
     }
 }
 
@@ -211,6 +191,17 @@ impl<T, const N: usize> List<usize> for Array<T, N> {
 }
 
 impl<T, const N: usize> ListIter<usize> for Array<T, N> {
+    fn iter(&self) -> BoxIter<&Self::Item> {
+        BoxIter::new(self.as_ref().iter())
+    }
+
+    fn pairwise<'a>(
+        &'a self,
+        x: &'a Self,
+    ) -> BoxIter<(&'a Self::Item, &'a Self::Item)> {
+        BoxIter::new(self.iter().zip(x.iter()))
+    }
+
     fn map<F: FnMut(&T) -> T>(&self, mut f: F) -> Self {
         Self(std::array::from_fn(|i| f(&self[i])))
     }

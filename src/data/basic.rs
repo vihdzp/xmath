@@ -174,16 +174,15 @@ impl<T, C> List<C> for Empty<T> {
     }
 }
 
-impl<'a, T, C> IntoIterator for Iter<'a, &'a Empty<T>, C> {
-    type Item = &'a T;
-    type IntoIter = std::iter::Empty<&'a T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        std::iter::empty()
-    }
-}
-
 impl<T: Ring, C> ListIter<C> for Empty<T> {
+    fn iter(&self) -> BoxIter<&Self::Item> {
+        BoxIter::new(std::iter::empty())
+    }
+
+    fn pairwise(&self, x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
+        BoxIter::new(std::iter::empty())
+    }
+
     fn map<F: FnMut(&Self::Item) -> Self::Item>(&self, _: F) -> Self {
         Self::new()
     }
