@@ -271,11 +271,11 @@ impl<M: ListIter<(usize, usize)>> ListIter<(usize, usize)> for Transpose<M> {
         self.as_ref().iter()
     }
 
-    fn pairwise<'a>(
+    fn iter_pair<'a>(
         &'a self,
         x: &'a Self,
     ) -> BoxIter<(&'a Self::Item, &'a Self::Item)> {
-        self.as_ref().pairwise(x.as_ref())
+        self.as_ref().iter_pair(x.as_ref())
     }
 
     fn map<F: FnMut(&M::Item) -> M::Item>(&self, f: F) -> Self {

@@ -66,7 +66,7 @@ where
         && M::WIDTH == N::WIDTH
         && M::WIDTH == K::WIDTH
     {
-        madd_trim::<M, N, K>(m, n)
+        madd_trim(m, n)
     } else {
         panic!("{}", crate::DIM_MISMATCH)
     }
@@ -131,7 +131,7 @@ where
     M::Item: Ring,
 {
     if M::HEIGHT == K::HEIGHT && M::WIDTH == N::HEIGHT && N::WIDTH == K::WIDTH {
-        mmul_trim::<M, N, K>(m, n)
+        mmul_trim(m, n)
     } else {
         panic!("{}", crate::DIM_MISMATCH)
     }

@@ -476,7 +476,7 @@ impl<T: Zero> ListIter<usize> for Poly<T> {
         BoxIter::new(self.as_slice().iter())
     }
 
-    fn pairwise(&self, x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
+    fn iter_pair(&self, _x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
         todo!()
     }
 

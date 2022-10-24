@@ -195,7 +195,7 @@ impl<T, const N: usize> ListIter<usize> for Array<T, N> {
         BoxIter::new(self.as_ref().iter())
     }
 
-    fn pairwise<'a>(
+    fn iter_pair<'a>(
         &'a self,
         x: &'a Self,
     ) -> BoxIter<(&'a Self::Item, &'a Self::Item)> {

@@ -179,7 +179,7 @@ impl<T: Ring, C> ListIter<C> for Empty<T> {
         BoxIter::new(std::iter::empty())
     }
 
-    fn pairwise(&self, x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
+    fn iter_pair(&self, _: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
         BoxIter::new(std::iter::empty())
     }
 

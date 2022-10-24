@@ -36,7 +36,7 @@ where
         BoxIter::new(self.as_ref().iter().flat_map(|v| v.iter()))
     }
 
-    fn pairwise(&self, x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
+    fn iter_pair(&self, _x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
         todo!()
     }
 
@@ -233,7 +233,7 @@ where
         BoxIter::new(self.as_slice().iter().flat_map(|v| v.iter()))
     }
 
-    fn pairwise(&self, x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
+    fn iter_pair(&self, _x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
         todo!()
     }
 

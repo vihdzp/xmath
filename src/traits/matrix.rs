@@ -104,7 +104,7 @@ pub trait ListIter<C>: List<C> {
     ///
     /// If either entry is a ghost entry, a reference to it handled by the
     /// iterator should be returned.
-    fn pairwise<'a>(
+    fn iter_pair<'a>(
         &'a self,
         x: &'a Self,
     ) -> BoxIter<(&'a Self::Item, &'a Self::Item)>;
@@ -232,12 +232,6 @@ impl Direction {
             Self::Column => Self::Row,
             Self::Either => Self::Either,
         }
-    }
-}
-
-impl Neg for Direction {
-    fn neg(&self) -> Self {
-        self.transpose()
     }
 }
 
