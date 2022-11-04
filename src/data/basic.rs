@@ -4,7 +4,7 @@
 use super::aliases::NonZero;
 use crate::{
     derive_add, derive_div, derive_mul, derive_neg, derive_sub,
-    traits::{basic::*, matrix::*},
+    traits::{basic::*, dim::TypeNum, matrix::*},
 };
 use std::fmt::{Display, Write};
 
@@ -158,54 +158,20 @@ impl<T> AddGroup for Empty<T> {}
 impl<T> MulGroup for Empty<T> {}
 impl<T> Ring for Empty<T> {}
 
-impl<T, C> List<C> for Empty<T> {
+impl<T, C: TypeNum> List<C> for Empty<T> {
     type Item = T;
+    const SIZE: C = C::ZERO;
 
-    fn is_valid_coeff(_: C) -> bool {
-        false
-    }
-
-    fn coeff_ref(&self, _: C) -> Option<&Self::Item> {
+    fn coeff_ref(&self, _: C::Array<usize>) -> Option<&Self::Item> {
         None
     }
 
-    fn coeff_set(&mut self, _: C, _: Self::Item) {
+    fn coeff_set(&mut self, _: C::Array<usize>, _: Self::Item) {
         panic!("type has no coefficients")
     }
 }
 
-impl<T: Ring, C> ListIter<C> for Empty<T> {
-    fn iter(&self) -> BoxIter<&Self::Item> {
-        BoxIter::new(std::iter::empty())
-    }
-
-    fn iter_pair(&self, _: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
-        BoxIter::new(std::iter::empty())
-    }
-
-    fn map<F: FnMut(&Self::Item) -> Self::Item>(&self, _: F) -> Self {
-        Self::new()
-    }
-
-    fn map_mut<F: FnMut(&mut Self::Item)>(&mut self, _: F) {}
-
-    /* fn pairwise<F: FnMut(&Self::Item, &Self::Item) -> Self::Item>(
-        &self,
-        _: &Self,
-        _: F,
-    ) -> Self {
-        Self::new()
-    }
-
-    fn pairwise_mut<F: FnMut(&mut Self::Item, &Self::Item)>(
-        &mut self,
-        _: &Self,
-        _: F,
-    ) {
-    }*/
-}
-
-impl<T: Ring, C> Module<C> for Empty<T> {}
+impl<T: Ring, C: TypeNum> Module<C> for Empty<T> {}
 
 impl<T> FromIterator<T> for Empty<T> {
     fn from_iter<I: IntoIterator<Item = T>>(_: I) -> Self {
@@ -214,21 +180,12 @@ impl<T> FromIterator<T> for Empty<T> {
 }
 
 impl<T: Ring> LinearModule for Empty<T> {
-    type DimType = usize;
-    const DIM: Self::DimType = 0;
-
     fn support(&self) -> usize {
         0
     }
 }
 
 impl<T: Ring> Matrix for Empty<T> {
-    type HeightType = usize;
-    type WidthType = usize;
-
-    const HEIGHT: Self::HeightType = 0;
-    const WIDTH: Self::WidthType = 0;
-
     const DIR: Direction = Direction::Either;
 
     fn col_support(&self, _: usize) -> usize {

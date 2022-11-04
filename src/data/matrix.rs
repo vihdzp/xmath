@@ -12,67 +12,25 @@ use crate::algs::matrix::*;
 use crate::traits::matrix::*;
 use crate::{data::aliases::Transpose, traits::basic::*};
 
-impl<C, V: List<C>, const N: usize> List<(usize, C)> for Array<V, N> {
+impl<C: Dims, V: List<C>, const N: usize> List<(usize, C)> for Array<V, N> {
     type Item = V::Item;
+    const SIZE: (usize, C) = (N, V::SIZE);
 
-    fn is_valid_coeff(i: (usize, C)) -> bool {
-        i.0 < N && V::is_valid_coeff(i.1)
+    fn coeff_ref(&self, i: (usize, C::Array<usize>)) -> Option<&V::Item> {
+        <Self as List<usize>>::coeff_ref(self, i.0)?.coeff_ref(i.1)
     }
 
-    fn coeff_ref(&self, i: (usize, C)) -> Option<&V::Item> {
-        self.coeff_ref(i.0)?.coeff_ref(i.1)
-    }
-
-    fn coeff_set(&mut self, i: (usize, C), x: V::Item) {
+    fn coeff_set(&mut self, i: (usize, C::Array<usize>), x: V::Item) {
         self[i.0].coeff_set(i.1, x);
     }
 }
 
-impl<C, V: Module<C>, const N: usize> ListIter<(usize, C)> for Array<V, N>
-where
-    V::Item: Ring,
-{
-    fn iter(&self) -> BoxIter<&Self::Item> {
-        BoxIter::new(self.as_ref().iter().flat_map(|v| v.iter()))
-    }
-
-    fn iter_pair(&self, _x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
-        todo!()
-    }
-
-    fn map<F: FnMut(&V::Item) -> V::Item>(&self, mut f: F) -> Self {
-        Self(std::array::from_fn(|i| self[i].map(|x| f(x))))
-    }
-
-    fn map_mut<F: FnMut(&mut V::Item)>(&mut self, mut f: F) {
-        for i in 0..N {
-            self[i].map_mut(|x| f(x));
-        }
-    }
-
-    /*fn pairwise<F: FnMut(&Self::Item, &Self::Item) -> Self::Item>(
-        &self,
-        x: &Self,
-        mut f: F,
-    ) -> Self {
-        self.pairwise(x, |u, v| u.pairwise(v, &mut f))
-    }
-
-    fn pairwise_mut<F: FnMut(&mut Self::Item, &Self::Item)>(
-        &mut self,
-        x: &Self,
-        mut f: F,
-    ) {
-        self.pairwise_mut(x, |u, v| u.pairwise_mut(v, &mut f));
-    }*/
-}
-
-impl<C, V: Module<C>, const N: usize> Module<(usize, C)> for Array<V, N> where
+impl<C: Dims, V: Module<C>, const N: usize> Module<(usize, C)> for Array<V, N> where
     V::Item: Ring
 {
 }
 
-impl<V: LinearModule, const N: usize> Matrix for Array<V, N>
+impl<C: Dim, V: LinearModule<C>, const N: usize> Matrix for Array<V, N>
 where
     V::Item: Ring,
 {
@@ -88,7 +46,8 @@ where
     }
 
     fn row_support(&self, i: usize) -> usize {
-        self.coeff_ref(i).map_or(0, V::support)
+        todo!()
+        //self.coeff_ref(i).map_or(0, V::support)
     }
 
     fn height(&self) -> usize {
@@ -205,11 +164,11 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
     }
 }
 
-impl<C, V: List<C> + Zero> List<(usize, C)> for Poly<V> {
+impl<C: Dims, V: List<C> + Zero> List<(Inf, C)> for Poly<V> {
     type Item = V::Item;
 
-    fn is_valid_coeff(i: (usize, C)) -> bool {
-        V::is_valid_coeff(i.1)
+    fn size() -> (Inf, C) {
+        (Inf, V::size())
     }
 
     fn coeff_ref(&self, i: (usize, C)) -> Option<&V::Item> {
@@ -225,53 +184,7 @@ impl<C, V: List<C> + Zero> List<(usize, C)> for Poly<V> {
     }
 }
 
-impl<C, V: Module<C>> ListIter<(usize, C)> for Poly<V>
-where
-    V::Item: Ring,
-{
-    fn iter(&self) -> BoxIter<&Self::Item> {
-        BoxIter::new(self.as_slice().iter().flat_map(|v| v.iter()))
-    }
-
-    fn iter_pair(&self, _x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
-        todo!()
-    }
-
-    fn map<F: FnMut(&V::Item) -> V::Item>(&self, mut f: F) -> Self {
-        self.as_slice().iter().map(|v| v.map(|x| f(x))).collect()
-    }
-
-    fn map_mut<F: FnMut(&mut V::Item)>(&mut self, mut f: F) {
-        // Safety: we trim at the end.
-        unsafe {
-            for v in self.as_slice_mut() {
-                v.map_mut(&mut f);
-            }
-
-            crate::data::poly::trim(self.as_vec_mut());
-        }
-    }
-
-    /*fn pairwise<F: FnMut(&Self::Item, &Self::Item) -> Self::Item>(
-        &self,
-        x: &Self,
-        mut f: F,
-    ) -> Self {
-        <Poly<V> as ListIter<usize>>::pairwise(&self, x, |u: &V, v: &V| {
-            u.pairwise(v, &mut f)
-        })
-    }
-
-    fn pairwise_mut<F: FnMut(&mut Self::Item, &Self::Item)>(
-        &mut self,
-        x: &Self,
-        f: F,
-    ) {
-        todo!()
-    }*/
-}
-
-impl<C, V: Module<C>> Module<(usize, C)> for Poly<V> where V::Item: Ring {}
+impl<C: Dims, V: Module<C>> Module<(Inf, C)> for Poly<V> where V::Item: Ring {}
 
 impl<V: LinearModule> Matrix for Poly<V>
 where

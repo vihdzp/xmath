@@ -2,7 +2,8 @@
 
 use crate::traits::{
     basic::*,
-    matrix::{BoxIter, LinearModule, List, ListIter, Module},
+    dim::{CSingle, U1},
+    matrix::{Dim, LinearModule, List, Module},
 };
 
 /// A statically-sized array of elements of a single type.
@@ -91,57 +92,69 @@ impl<T: One, const N: usize> One for Array<T, N> {
 
 impl<T: Neg, const N: usize> Neg for Array<T, N> {
     fn neg(&self) -> Self {
-        self.map(T::neg)
+        todo!()
+        //self.map(T::neg)
     }
 
     fn neg_mut(&mut self) {
-        self.map_mut(T::neg_mut);
+        todo!()
+        //self.map_mut(T::neg_mut);
     }
 }
 
 impl<T: Inv, const N: usize> Inv for Array<T, N> {
     fn inv(&self) -> Self {
-        self.map(T::inv)
+        todo!()
+        //self.map(T::inv)
     }
 
     fn inv_mut(&mut self) {
-        self.map_mut(T::inv_mut)
+        todo!()
+        //self.map_mut(T::inv_mut)
     }
 }
 
 impl<T: Add, const N: usize> Add for Array<T, N> {
     fn add(&self, x: &Self) -> Self {
-        self.pairwise(x, T::add)
+        todo!()
+        //self.pairwise(x, T::add)
     }
 
     fn add_mut(&mut self, x: &Self) {
-        self.pairwise_mut(x, T::add_mut);
+        todo!()
+        //self.pairwise_mut(x, T::add_mut);
     }
 
     fn double(&self) -> Self {
-        self.map(T::double)
+        todo!()
+        //self.map(T::double)
     }
 
     fn double_mut(&mut self) {
-        self.map_mut(T::double_mut);
+        todo!()
+        //self.map_mut(T::double_mut);
     }
 }
 
 impl<T: Mul, const N: usize> Mul for Array<T, N> {
     fn mul(&self, x: &Self) -> Self {
-        self.pairwise(x, T::mul)
+        todo!()
+        //self.pairwise(x, T::mul)
     }
 
     fn mul_mut(&mut self, x: &Self) {
-        self.pairwise_mut(x, T::mul_mut);
+        todo!()
+        //self.pairwise_mut(x, T::mul_mut);
     }
 
     fn sq(&self) -> Self {
-        self.map(T::sq)
+        todo!()
+        //self.map(T::sq)
     }
 
     fn sq_mut(&mut self) {
-        self.map_mut(T::sq_mut);
+        todo!()
+        //self.map_mut(T::sq_mut);
     }
 }
 
@@ -174,70 +187,30 @@ impl<T: AddGroup, const N: usize> AddGroup for Array<T, N> {}
 impl<T: MulGroup, const N: usize> MulGroup for Array<T, N> {}
 impl<T: Ring, const N: usize> Ring for Array<T, N> {}
 
-impl<T, const N: usize> List<usize> for Array<T, N> {
+impl<T, const N: usize> List<U1> for Array<T, N> {
     type Item = T;
+    const SIZE: CSingle<Dim> = CSingle(Dim::Fin(N));
 
-    fn is_valid_coeff(i: usize) -> bool {
-        i < N
+    fn coeff_ref(&self, i: CSingle<usize>) -> Option<&Self::Item> {
+        self.as_ref().get(i.0)
     }
 
-    fn coeff_ref(&self, i: usize) -> Option<&Self::Item> {
-        self.as_ref().get(i)
+    unsafe fn coeff_set_unchecked(&mut self, i: CSingle<usize>, x: Self::Item) {
+        *self.as_mut().get_unchecked(i.0) = x;
     }
 
-    fn coeff_set(&mut self, i: usize, x: Self::Item) {
-        self.as_mut()[i] = x;
-    }
+    
 }
 
-impl<T, const N: usize> ListIter<usize> for Array<T, N> {
-    fn iter(&self) -> BoxIter<&Self::Item> {
-        BoxIter::new(self.as_ref().iter())
-    }
-
-    fn iter_pair<'a>(
-        &'a self,
-        x: &'a Self,
-    ) -> BoxIter<(&'a Self::Item, &'a Self::Item)> {
-        BoxIter::new(self.iter().zip(x.iter()))
-    }
-
-    fn map<F: FnMut(&T) -> T>(&self, mut f: F) -> Self {
-        Self(std::array::from_fn(|i| f(&self[i])))
-    }
-
-    fn map_mut<F: FnMut(&mut T)>(&mut self, mut f: F) {
-        for i in 0..N {
-            f(&mut self[i]);
-        }
-    }
-
-    /* fn pairwise<F: FnMut(&Self::Item, &Self::Item) -> Self::Item>(
-        &self,
-        x: &Self,
-        mut f: F,
-    ) -> Self {
-        Self(std::array::from_fn(|i| f(&self[i], &x[i])))
-    }
-
-    fn pairwise_mut<F: FnMut(&mut Self::Item, &Self::Item)>(
-        &mut self,
-        x: &Self,
-        mut f: F,
-    ) {
-        for i in 0..N {
-            f(&mut self[i], &x[i]);
-        }
-    }*/
-}
-
-impl<T: Ring, const N: usize> Module<usize> for Array<T, N> {
+impl<T: Ring, const N: usize> Module<U1> for Array<T, N> {
     fn smul(&self, x: &T) -> Self {
-        self.map(|y| y.mul(x))
+        todo!()
+        //self.map(|y| y.mul(x))
     }
 
     fn smul_mut(&mut self, x: &T) {
-        self.map_mut(|y| y.mul_mut(x));
+        todo!()
+        //self.map_mut(|y| y.mul_mut(x));
     }
 }
 
@@ -252,9 +225,6 @@ impl<T, const N: usize> LinearModule for Array<T, N>
 where
     T: Ring,
 {
-    type DimType = usize;
-    const DIM: Self::DimType = N;
-
     fn support(&self) -> usize {
         N
     }

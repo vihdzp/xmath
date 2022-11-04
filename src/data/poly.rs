@@ -2,6 +2,7 @@
 //! bivariate polynomials [`Poly2`].
 
 use crate::traits::basic::*;
+use crate::traits::dim::U1;
 use std::cmp::Ordering::*;
 use std::fmt::Write;
 
@@ -433,12 +434,8 @@ impl<T: Zero + CommAdd + CommMul> CommMul for Poly<T> {}
 impl<T: Ring + ZeroNeOne> MulMonoid for Poly<T> {}
 impl<T: Ring + ZeroNeOne> Ring for Poly<T> {}
 
-impl<T: Zero> List<usize> for Poly<T> {
+impl<T: Zero> List<U1> for Poly<T> {
     type Item = T;
-
-    fn is_valid_coeff(_: usize) -> bool {
-        true
-    }
 
     fn coeff_ref(&self, i: usize) -> Option<&T> {
         self.as_slice().get(i)
@@ -471,48 +468,7 @@ impl<T: Zero> List<usize> for Poly<T> {
     }
 }
 
-impl<T: Zero> ListIter<usize> for Poly<T> {
-    fn iter(&self) -> BoxIter<&Self::Item> {
-        BoxIter::new(self.as_slice().iter())
-    }
-
-    fn iter_pair(&self, _x: &Self) -> BoxIter<(&Self::Item, &Self::Item)> {
-        todo!()
-    }
-
-    fn map<F: FnMut(&T) -> T>(&self, f: F) -> Self {
-        self.as_slice().iter().map(f).collect()
-    }
-
-    fn map_mut<F: FnMut(&mut T)>(&mut self, mut f: F) {
-        // Safety: we trim the vector at the end.
-        unsafe {
-            for x in self.as_slice_mut() {
-                f(x);
-            }
-
-            trim(self.as_vec_mut());
-        }
-    }
-
-    /*fn pairwise<F: FnMut(&Self::Item, &Self::Item) -> Self::Item>(
-        &self,
-        x: &Self,
-        f: F,
-    ) -> Self {
-        todo!()
-    }
-
-    fn pairwise_mut<F: FnMut(&mut Self::Item, &Self::Item)>(
-        &mut self,
-        x: &Self,
-        f: F,
-    ) {
-        todo!()
-    }*/
-}
-
-impl<T: Ring> Module<usize> for Poly<T> {
+impl<T: Ring> Module<U1> for Poly<T> {
     fn smul(&self, x: &T) -> Self {
         if x.is_zero() {
             Self::zero()
@@ -548,9 +504,6 @@ impl<T: Zero> FromIterator<T> for Poly<T> {
 }
 
 impl<T: Ring> LinearModule for Poly<T> {
-    type DimType = Inf;
-    const DIM: Self::DimType = Inf;
-
     fn support(&self) -> usize {
         self.len()
     }

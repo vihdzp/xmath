@@ -13,136 +13,151 @@
 //! Correctly managing these two kinds of lists under the same interface is a
 //! subtle matter. See [`List`] for more details.
 
-use super::basic::*;
+use super::{
+    basic::*,
+    dim::{CSingle, TypeNum, U1, U2},
+};
+
+/// (UPDATE THIS!!!!)
+///
+/// A trait for a value representing the dimension of a [`LinearModule`], the
+/// width and height of a [`Matrix`], among other things.
+///
+/// This trait is only implemented for two types, `usize` and [`Inf`]. A `usize`
+/// dimension represents a statically sized object, while an `Inf` dimension
+/// represents a dynamically sized object. This trait should not be implemented
+/// for anything else.
+///
+/// We implement this at the type level instead of using something like an enum,
+/// as it gives us more freedom to use this information at compile time.
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Dim {
+    Fin(usize),
+    Inf,
+}
+
+impl Dim {
+    pub fn cmp_usize(self, x: usize) -> bool {
+        match self {
+            Dim::Fin(y) => x < y,
+            Dim::Inf => true,
+        }
+    }
+}
 
 /// Represents a structure with a notion of coordinates or coefficients.
 ///
-/// Note that a list can be indexed by more than one kind of coefficient. For
-/// instance, [`MatrixMN`](crate::data::matrix::MatrixMN) can be indexed by
-/// either `usize` or `(usize, usize)`.
+/// The argument `C` in `List<C>` is a tuple that whether each dimension of the
+/// list (width, height, etc.) is statically or dynamically sized. Note that a
+/// type can implement `List<C>` for more than one kind of tuple. For instance,
+/// [`MatrixMN`](crate::data::matrix::MatrixMN) implements both `List<usize>`
+/// and `List<(usize, usize)>`, meaning that it can either be indexed by a
+/// single coordinate (row-wise) or by two (entry-wise), and is statically sized
+/// in both cases.
 ///
-/// ## Valid coefficients
+/// ## Valid indices
 ///
-/// The type of coefficients doesn't necessarily need to exhaust the list. As
-/// such, we consider a set of *valid coefficients*, being those that can be
-/// written to.
+/// The type of indices doesn't necessarily need to exhaust the list. As such,
+/// we consider a set of *valid indices*, being those that can be written to.
 ///
-/// For `i` a valid coefficient, we consider two kinds of entries depending on
-/// the output of [`List::coeff_ref`] at `i`:
+/// For `i` a valid index, we consider two kinds of entries depending on the
+/// output of [`List::coeff_ref`] at `i`:
 ///
 /// - `Some(&x)`: *present entries*, have a physical location in memory.
 /// - `None`: *ghost entries*, are a stand-in for some other value which depends
 ///   on the type.
 ///
-/// As an example, in the [`Poly`](crate::data::poly::Poly) that represents
-/// `2 + 3x`, the coefficient `3` of x is a present entry, while the coefficient
-/// `0` of x² is a ghost entry, as it's not stored in memory. Nevertheless,
-/// since `Poly` is dynamically-sized, it's still possible to write to the x²
-/// coefficient.
-pub trait List<C> {
+/// As an example, consider the [`Poly`](crate::data::poly::Poly) that
+/// represents `6 + 8x`. Its inner storage will look something like
+/// `vec![6, 8]`. For this `Poly`, the coefficient `8` of x is a present entry,
+/// while the coefficient `0` of x² is a ghost entry, as it's not stored in
+/// memory. Nevertheless, since `Poly` is dynamically-sized, it's still possible
+/// to write to the x² coefficient, meaning `2` is a valid index.
+///
+/// To make things simpler, we further restrict lists so that their valid
+/// entries define an n-dimensional rectangle. This rectangle is the *size* of
+/// the list.
+pub trait List<C: TypeNum> {
     /// The type of entries in the list.
     type Item;
 
-    /// Returns whether the coefficient is valid.
-    fn is_valid_coeff(i: C) -> bool;
+    /// The size of the list. See the documentation for [`List`] for more info.
+    const SIZE: C::Array<Dim>;
 
     /// Returns a reference to the entry with a certain coefficient. Returns
     /// `None` if said reference doesn't exist.
-    fn coeff_ref(&self, i: C) -> Option<&Self::Item>;
+    fn coeff_ref_gen(&self, i: &C::Array<usize>) -> Option<&Self::Item>;
 
-    /// Returns the value of the entry with a certain coefficient, defaulting to
-    /// 0.
-    fn coeff(&self, i: C) -> Self::Item
-    where
-        Self::Item: Clone + Zero,
-    {
-        self.coeff_ref(i)
-            .map(Clone::clone)
-            .unwrap_or_else(Self::Item::zero)
-    }
+    /// Sets the entry with a certain index with a certain value.
+    ///
+    /// ## Safety
+    ///
+    /// The index must be valid.
+    unsafe fn coeff_set_unchecked_gen(
+        &mut self,
+        i:& C::Array<usize>,
+        x: Self::Item,
+    );
 
-    /// Sets the entry with a certain coefficient with a certain value. The
-    /// allowed coefficients depend on the type.
+    /// Sets the entry with a certain index with a certain value.
     ///
     /// ## Panics
     ///
     /// This function must panic if and only if it is given an invalid
     /// coefficient.
-    fn coeff_set(&mut self, i: C, x: Self::Item);
+    fn coeff_set_gen(&mut self, i: &C::Array<usize>, x: Self::Item) {
+        if list::is_valid_index::<C, Self>(i) {
+            unsafe { self.coeff_set_unchecked_gen(i, x) }
+        } else {
+            panic!("the index {:?} is invalid", i.as_ref())
+        }
+    }
+
+    /// Creates a new list by mapping each present entry by the given function.
+    fn map<F: Fn(&Self::Item) -> Self::Item>(&self, f: F) -> Self;
+
+    /// Changes a list by mapping each present entry by the given function.
+    fn map_mut<F: Fn(&mut Self::Item)>(&mut self, f: F);
 }
 
-/// A dynamically typed iterator.
-///
-/// This is used in the type signature of [`ListIter::iter`]. Ideally this
-/// wouldn't be necessary, and we could just require an [`IntoIterator`]
-/// implementation on some dummy type `Iter<'a, &'a Self, C>`. Unfortunately,
-/// implementing this for wrapper types such as [`Transpose`] invokes an old and
-/// unfixed [compiler bug](https://github.com/rust-lang/rust/issues/37748).
-pub struct BoxIter<'a, T>(Box<dyn Iterator<Item = T> + 'a>);
+pub mod list {
+    use crate::traits::dim;
 
-impl<'a, T> BoxIter<'a, T> {
-    pub fn new<I: Iterator<Item = T> + 'a>(i: I) -> Self {
-        Self(Box::new(i))
+    use super::*;
+
+    /// Returns whether `i` is a valid index for the list.
+    pub fn is_valid_index<C: TypeNum, L: List<C> + ?Sized>(
+        i: &C::Array<usize>,
+    ) -> bool {
+        dim::ctuple::pairwise::<C, _, _, _>(
+            &L::SIZE,
+            i,
+            |x: &Dim, y: &usize| x.cmp_usize(*y),
+        )
+    }
+
+    /// Returns the value of the entry with a certain coefficient, defaulting to
+    /// 0.
+    fn coeff_or_zero_gen<C: TypeNum, L: List<C>>(
+        l: &L,
+        i: &C::Array<usize>,
+    ) -> L::Item
+    where
+        L::Item: Clone + Zero,
+    {
+        l.coeff_ref_gen(i)
+            .map(Clone::clone)
+            .unwrap_or_else(L::Item::zero)
     }
 }
 
-impl<'a, T> Iterator for BoxIter<'a, T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-
-/// A [`List`] with iterator capabilities.
-pub trait ListIter<C>: List<C> {
-    /// Iterates over all entries of the list in some order.
-    fn iter(&self) -> BoxIter<&Self::Item>;
-
-    /// Iterates over all pairs of entries of two lists, such that at least one
-    /// of them is present, in some order.
-    ///
-    /// If either entry is a ghost entry, a reference to it handled by the
-    /// iterator should be returned.
-    fn iter_pair<'a>(
-        &'a self,
-        x: &'a Self,
-    ) -> BoxIter<(&'a Self::Item, &'a Self::Item)>;
-
-    /// Maps all present entries through a function.
-    fn map<F: FnMut(&Self::Item) -> Self::Item>(&self, f: F) -> Self;
-
-    /// Mutably maps all present entries through a function `f`.
-    fn map_mut<F: FnMut(&mut Self::Item)>(&mut self, f: F);
-
-    /*
-    /// Performs a pairwise operation.
-    ///
-    /// The operation is performed on every pair of entries with the same
-    /// coefficient where at least one of them is present.
-    fn pairwise<F: FnMut(&Self::Item, &Self::Item) -> Self::Item>(
-        &self,
-        x: &Self,
-        f: F,
-    ) -> Self;
-
-    /// Performs a mutable pairwise operation.
-    ///
-    /// The operation is performed on every pair of entries with the same
-    /// coefficient where at least one of them is present.
-    fn pairwise_mut<F: FnMut(&mut Self::Item, &Self::Item)>(
-        &mut self,
-        x: &Self,
-        f: F,
-    ); */
-}
-
-/// A [`ListIter`] that is also an [`AddGroup`], such that addition in this
+/// A [`List`] that is also an [`AddGroup`], such that addition in this
 /// structure matches coordinatewise addition, and such that scalar
 /// multiplication can be defined.
 ///
 /// Any ghost entries in a module are to be interpreted as zeros.
-pub trait Module<C>: AddGroup + ListIter<C>
+pub trait Module<C: TypeNum>: AddGroup + List<C>
 where
     Self::Item: Ring,
 {
@@ -157,45 +172,69 @@ where
     }
 
     // Dot product.
-    //fn dot(&self, x: &Self) -> Self::Item ;
+    fn dot(&self, x: &Self) -> Self::Item;
 }
-
-/// A trait for a value representing the dimensions of a [`LinearModule`] or a
-/// [`Matrix`](crate::data::matrix::Matrix).
-///
-/// This trait is only implemented for two types, `usize` and [`Inf`]. A `usize`
-/// dimension represents a statically sized object, while an `Inf` dimension
-/// represents a dynamically sized object. This trait should not be implemented
-/// for anything else.
-pub trait Dim: Copy + Eq {}
-
-impl Dim for usize {}
-
-/// Represents an infinite dimension. In practice, this means that the object in
-/// question is dynamically sized.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Inf;
-
-impl Dim for Inf {}
 
 /// A [`Module`] whose coefficients are indexed by a `usize`.
 ///
 /// The implementation of [`FromIterator`] must write the coefficients in order,
 /// interpreting `None` as zeros. It must stop reading from the iterator once
-/// no more entries can be written.
-pub trait LinearModule: Module<usize> + FromIterator<Self::Item>
+/// no more entries can be written. We provide a default implementation
+/// [`linear_module::from_iter`].
+pub trait LinearModule: Module<U1> + FromIterator<Self::Item>
 where
     Self::Item: Ring,
 {
-    /// Whether the module is statically or dynamically sized.
-    type DimType: Dim;
+    fn coeff_ref(&self, i: usize) -> Option<&Self::Item> {
+        self.coeff_ref_gen(&CSingle(i))
+    }
 
-    /// The dimension of the module.
-    const DIM: Self::DimType;
+    unsafe fn coeff_set_unchecked(&mut self, i: usize, x: Self::Item) {
+        self.coeff_set_unchecked_gen(&CSingle(i), x);
+    }
+
+    fn coeff_set(&mut self, i: usize, x: Self::Item) {
+        self.coeff_set_gen(&CSingle(i), x);
+    }
 
     /// Returns some number `i`, such that coefficients from `i` onwards are
-    /// either zero or nonexistent.
+    /// either zero or nonexistent. Any coefficient less than the support must
+    /// be valid.
     fn support(&self) -> usize;
+}
+
+pub mod linear_module {
+    use crate::traits::dim::CSingle;
+
+    use super::*;
+
+    pub fn is_valid_index<V: LinearModule>(i: usize) -> bool
+    where
+        V::Item: Ring,
+    {
+        list::is_valid_index::<U1, V>(&CSingle(i))
+    }
+
+    /// A default `FromIterator` implementation for linear modules.
+    pub fn from_iter<V: LinearModule, I: IntoIterator<Item = V::Item>>(
+        iter: I,
+    ) -> V
+    where
+        V::Item: Ring,
+    {
+        let mut res = V::zero();
+        let size = V::SIZE;
+
+        for (i, x) in iter.into_iter().enumerate() {
+            if is_valid_index::<V>(i) {
+                res.coeff_set(i, x);
+            } else {
+                break;
+            }
+        }
+
+        res
+    }
 }
 
 /// The preferred order to write the entries of a matrix in. Sometimes allows
@@ -239,22 +278,10 @@ impl Direction {
 ///
 /// Matrices are just [`Module`]s that are indexed by two coordinates, with some
 /// extra methods that allow us to do computations on them.
-pub trait Matrix: Module<(usize, usize)>
+pub trait Matrix: Module<U2>
 where
     Self::Item: Ring,
 {
-    /// Whether the height is statically or dynamically sized.
-    type HeightType: Dim;
-
-    /// Whether the width is statically or dynamically sized.
-    type WidthType: Dim;
-
-    /// The height of the matrix.
-    const HEIGHT: Self::HeightType;
-
-    /// The width of the matrix.
-    const WIDTH: Self::WidthType;
-
     /// The preferred direction to write the entries of the matrix.
     const DIR: Direction;
 
@@ -275,12 +302,26 @@ where
     /// Writes a matrix in row order, interpreting `None` as zeros. It must stop
     /// reading from the iterator once no more entries can be written.
     ///
+    /// The default implementation initializes a zero matrix, then writes
+    /// entries one by one via [`List::coeff_set`].
+    ///
     /// When either [`Matrix::collect_row`] or [`Matrix::collect_col`] can be
     /// used, the former should be the default, as it reflects the layout of the
     /// most common kinds of matrices.
     fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
         iter: J,
-    ) -> Self;
+    ) -> Self {
+        let mut res = Self::zero();
+
+        for (r, iter) in iter.into_iter().enumerate() {
+            for (c, x) in iter.into_iter().enumerate() {
+                todo!()
+                // res.coeff_set(i, x)
+            }
+        }
+
+        todo!()
+    }
 
     /// Writes a matrix in column order, interpreting `None` as zeros. It must
     /// stop reading from the iterator once no more entries can be written.
@@ -306,5 +347,23 @@ where
         } else {
             Self::collect_col((0..w).map(|j| (0..h).map(move |i| f(i, j))))
         }
+    }
+}
+
+pub mod matrix {
+    use super::*;
+
+    pub const fn size_height<M: Matrix>() -> Dim
+    where
+        M::Item: Ring,
+    {
+        M::SIZE.0
+    }
+
+    pub const fn size_width<M: Matrix>() -> Dim
+    where
+        M::Item: Ring,
+    {
+        M::SIZE.1 .0
     }
 }

@@ -1,7 +1,11 @@
 //! Declares various type aliases, which change the structure a type is endowed
 //! with.
 
-use crate::traits::{basic::*, matrix::*};
+use crate::traits::{
+    basic::*,
+    dim::{CPair, U2},
+    matrix::*,
+};
 
 /// A type alias that endows a type with additive operations instead of
 /// multiplicative ones.
@@ -220,6 +224,7 @@ impl<T: IntegralDomain> Mul for NonZero<T> {
 
 impl<T: IntegralDomain + MulMonoid + ZeroNeOne> MulMonoid for NonZero<T> {}
 
+/*
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Transpose<T>(pub T);
@@ -250,12 +255,10 @@ impl<T> Transpose<T> {
     }
 }
 
-impl<M: List<(usize, usize)>> List<(usize, usize)> for Transpose<M> {
+impl<M: List<Two>> List<Two> for Transpose<M> {
     type Item = M::Item;
 
-    fn is_valid_coeff(i: (usize, usize)) -> bool {
-        M::is_valid_coeff((i.1, i.0))
-    }
+    const SIZE: CPair<Dim, Dim> = M::SIZE.swap();
 
     fn coeff_ref(&self, i: (usize, usize)) -> Option<&M::Item> {
         self.0.coeff_ref((i.1, i.0))
@@ -264,43 +267,6 @@ impl<M: List<(usize, usize)>> List<(usize, usize)> for Transpose<M> {
     fn coeff_set(&mut self, i: (usize, usize), x: M::Item) {
         self.0.coeff_set((i.1, i.0), x)
     }
-}
-
-impl<M: ListIter<(usize, usize)>> ListIter<(usize, usize)> for Transpose<M> {
-    fn iter(&self) -> BoxIter<&Self::Item> {
-        self.as_ref().iter()
-    }
-
-    fn iter_pair<'a>(
-        &'a self,
-        x: &'a Self,
-    ) -> BoxIter<(&'a Self::Item, &'a Self::Item)> {
-        self.as_ref().iter_pair(x.as_ref())
-    }
-
-    fn map<F: FnMut(&M::Item) -> M::Item>(&self, f: F) -> Self {
-        Self(self.0.map(f))
-    }
-
-    fn map_mut<F: FnMut(&mut M::Item)>(&mut self, f: F) {
-        self.0.map_mut(f);
-    }
-
-    /* fn pairwise<F: FnMut(&Self::Item, &Self::Item) -> Self::Item>(
-        &self,
-        x: &Self,
-        f: F,
-    ) -> Self {
-        Self(self.0.pairwise(&x.0, f))
-    }
-
-    fn pairwise_mut<F: FnMut(&mut Self::Item, &Self::Item)>(
-        &mut self,
-        x: &Self,
-        f: F,
-    ) {
-        self.0.pairwise_mut(&x.0, f)
-    } */
 }
 
 impl<T: Zero> Zero for Transpose<T> {
@@ -413,3 +379,4 @@ where
         Self(M::collect_row(iter))
     }
 }
+*/
