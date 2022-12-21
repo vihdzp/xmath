@@ -33,7 +33,7 @@ pub mod data;
 pub mod traits;
 
 /// Generic error message.
-const DIM_MISMATCH: &str = "matrix dimension mismatch";
+const SIZE_MISMATCH: &str = "matrix size mismatch";
 
 /// A workaround for transmuting a generic type into another.
 ///
@@ -43,13 +43,13 @@ const DIM_MISMATCH: &str = "matrix dimension mismatch";
 ///
 /// All the same safety considerations for [`std::mem::transmute`] still apply.
 unsafe fn transmute_gen<T, U>(x: T) -> U {
-    (&*(&std::mem::MaybeUninit::new(x) as *const _
+    (*(&std::mem::MaybeUninit::new(x) as *const _
         as *const std::mem::MaybeUninit<_>))
         .assume_init_read()
 }
 
 /// Transmutes `[T; 1]` into `T`.
-fn from_array<T>(x: [T; 1]) -> T {
+pub fn from_array<T>(x: [T; 1]) -> T {
     // Safety: both types have the same layout.
     unsafe { crate::transmute_gen(x) }
 }

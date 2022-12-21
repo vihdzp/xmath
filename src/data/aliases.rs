@@ -1,11 +1,9 @@
 //! Declares various type aliases, which change the structure a type is endowed
 //! with.
 
-use crate::traits::{
-    basic::*,
-    dim::{CPair, U2},
-    matrix::*,
-};
+use crate::ctuple;
+use crate::traits::matrix::{Dim, Direction, Matrix, Module};
+use crate::traits::{basic::*, dim::U2, matrix::List};
 
 /// A type alias that endows a type with additive operations instead of
 /// multiplicative ones.
@@ -138,6 +136,7 @@ impl<T: AddGroup> MulGroup for Multiplicative<T> {}
 #[repr(transparent)]
 pub struct NonZero<T>(T);
 
+/// Returns a reference to the underlying value.
 impl<T> AsRef<T> for NonZero<T> {
     fn as_ref(&self) -> &T {
         &self.0
@@ -224,17 +223,18 @@ impl<T: IntegralDomain> Mul for NonZero<T> {
 
 impl<T: IntegralDomain + MulMonoid + ZeroNeOne> MulMonoid for NonZero<T> {}
 
-/*
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Transpose<T>(pub T);
 
+/// Returns a reference to the underlying matrix.
 impl<T> AsRef<T> for Transpose<T> {
     fn as_ref(&self) -> &T {
         &self.0
     }
 }
 
+/// Returns a mutable reference to the underlying matrix.
 impl<T> AsMut<T> for Transpose<T> {
     fn as_mut(&mut self) -> &mut T {
         &mut self.0
@@ -255,17 +255,29 @@ impl<T> Transpose<T> {
     }
 }
 
-impl<M: List<Two>> List<Two> for Transpose<M> {
+impl<M: List<U2>> List<U2> for Transpose<M> {
     type Item = M::Item;
 
-    const SIZE: CPair<Dim, Dim> = M::SIZE.swap();
+    const SIZE: ctuple!(Dim; 2) = M::SIZE.swap();
 
-    fn coeff_ref(&self, i: (usize, usize)) -> Option<&M::Item> {
-        self.0.coeff_ref((i.1, i.0))
+    fn coeff_ref_gen(&self, i: &ctuple!(usize; 2)) -> Option<&Self::Item> {
+        self.0.coeff_ref_gen(&i.swap())
     }
 
-    fn coeff_set(&mut self, i: (usize, usize), x: M::Item) {
-        self.0.coeff_set((i.1, i.0), x)
+    unsafe fn coeff_set_unchecked_gen(
+        &mut self,
+        index: &ctuple!(usize; 2),
+        value: Self::Item,
+    ) {
+        self.0.coeff_set_unchecked_gen(&index.swap(),value)
+    }
+
+    fn map<F: Fn(&Self::Item) -> Self::Item>(&self, f: F) -> Self {
+        Self(self.0.map(f))
+    }
+
+    fn map_mut<F: Fn(&mut Self::Item)>(&mut self, f: F) {
+        self.0.map_mut(f);
     }
 }
 
@@ -326,7 +338,7 @@ impl<T: Sub> Sub for Transpose<T> {
 impl<T: AddMonoid> AddMonoid for Transpose<T> {}
 impl<T: AddGroup> AddGroup for Transpose<T> {}
 
-impl<M: Module<(usize, usize)>> Module<(usize, usize)> for Transpose<M>
+impl<M: Module<U2>> Module<U2> for Transpose<M>
 where
     Self::Item: Ring,
 {
@@ -337,18 +349,16 @@ where
     fn smul_mut(&mut self, x: &M::Item) {
         self.0.smul_mut(x);
     }
+
+    fn dot(&self, x: &Self) -> Self::Item {
+        self.0.dot(&x.0)
+    }
 }
 
 impl<M: Matrix> Matrix for Transpose<M>
 where
     M::Item: Ring,
 {
-    type HeightType = M::WidthType;
-    type WidthType = M::HeightType;
-
-    const HEIGHT: Self::HeightType = M::WIDTH;
-    const WIDTH: Self::WidthType = M::HEIGHT;
-
     const DIR: Direction = M::DIR.transpose();
 
     fn col_support(&self, j: usize) -> usize {
@@ -379,4 +389,3 @@ where
         Self(M::collect_row(iter))
     }
 }
-*/

@@ -1,30 +1,106 @@
-//! Implements the type of arrays.
+//! Implements the type [`Array`] of statically-sized arrays with element-wise
+//! operations.
 
-use crate::traits::{
-    basic::*,
-    dim::{CSingle, U1},
-    matrix::{Dim, LinearModule, List, Module},
-};
+use crate::traits::{basic::*, dim::*, matrix::*};
 
 /// A statically-sized array of elements of a single type.
 ///
 /// ## Internal representation
 ///
-/// This stores a single `[T; N]` field.
+/// This stores a single `[T; N]` field. The layout is guaranteed to be the
+/// same, and the allowed values are equal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Array<T, const N: usize>(pub [T; N]);
 
-impl<T: Default, const N: usize> Default for Array<T, N> {
-    fn default() -> Self {
-        Self(std::array::from_fn(|_| T::default()))
+/// Returns a reference to the underlying array.
+impl<T, const N: usize> AsRef<[T; N]> for Array<T, N> {
+    fn as_ref(&self) -> &[T; N] {
+        &self.0
+    }
+}
+
+/// Returns a mutable reference to the underlying array.
+impl<T, const N: usize> AsMut<[T; N]> for Array<T, N> {
+    fn as_mut(&mut self) -> &mut [T; N] {
+        &mut self.0
+    }
+}
+
+/// Indexes the underlying array.
+impl<T, const N: usize> std::ops::Index<usize> for Array<T, N> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.as_ref()[index]
+    }
+}
+
+/// Mutably indexes the underlying array.
+impl<T, const N: usize> std::ops::IndexMut<usize> for Array<T, N> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.as_mut()[index]
+    }
+}
+
+/// Iterates over the entries of the array.
+impl<T, const N: usize> IntoIterator for Array<T, N> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, N>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
 impl<T, const N: usize> Array<T, N> {
+    /// Initializes a new array from a `[T; N]`.
+    pub fn new(x: [T; N]) -> Self {
+        Self(x)
+    }
+
+    /// Returns an iterator over the array.
+    pub fn iter(&self) -> std::slice::Iter<T> {
+        self.as_ref().iter()
+    }
+
+    /// Returns a mutable iterator over the array.
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<T> {
+        self.as_mut().iter_mut()
+    }
+
+    /// Returns a reference to the specified entry, or `None` if it doesn't
+    /// exist.
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.as_ref().get(index)
+    }
+
+    /// Sets a value without doing bounds checking.
+    ///
+    /// ## Safety
+    ///
+    /// The index must be within bounds.
+    pub unsafe fn set_unchecked(&mut self, index: usize, value: T) {
+        *self.as_mut().get_unchecked_mut(index) = value;
+    }
+
+    /// Sets a value, doing bounds checking.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the index is out of bounds.
+    pub fn set(&mut self, index: usize, value: T) {
+        self.as_mut()[index] = value;
+    }
+
+    /// Initializes the array `[f(0), f(1), ..., f(N - 1)]`.
+    pub fn from_fn<F: FnMut(usize) -> T>(f: F) -> Self {
+        Self::new(std::array::from_fn(f))
+    }
+
     /// Performs a pairwise operation on two arrays.
     pub fn pairwise<F: FnMut(&T, &T) -> T>(&self, x: &Self, mut f: F) -> Self {
-        Self(std::array::from_fn(|i| f(&self[i], &x[i])))
+        Self::from_fn(|i| f(&self[i], &x[i]))
     }
 
     /// Performs a mutable pairwise operation on two arrays.
@@ -35,132 +111,99 @@ impl<T, const N: usize> Array<T, N> {
     }
 }
 
-impl<T, const N: usize> AsRef<[T; N]> for Array<T, N> {
-    fn as_ref(&self) -> &[T; N] {
-        &self.0
+/// The default value is the array `[T::default(); N]`.
+impl<T: Default, const N: usize> Default for Array<T, N> {
+    fn default() -> Self {
+        Self::from_fn(|_| T::default())
     }
 }
 
-impl<T, const N: usize> AsMut<[T; N]> for Array<T, N> {
-    fn as_mut(&mut self) -> &mut [T; N] {
-        &mut self.0
-    }
-}
-
-impl<T, const N: usize> std::ops::Index<usize> for Array<T, N> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.as_ref()[index]
-    }
-}
-
-impl<T, const N: usize> std::ops::IndexMut<usize> for Array<T, N> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.as_mut()[index]
-    }
-}
-
-impl<T, const N: usize> IntoIterator for Array<T, N> {
-    type Item = T;
-    type IntoIter = std::array::IntoIter<T, N>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
+/// The zero value is the array `[0; N]`.
 impl<T: Zero, const N: usize> Zero for Array<T, N> {
     fn zero() -> Self {
-        Self(std::array::from_fn(|_| T::zero()))
+        Self::from_fn(|_| T::zero())
     }
 
     fn is_zero(&self) -> bool {
-        self.as_ref().iter().all(T::is_zero)
+        self.iter().all(T::is_zero)
     }
 }
 
+/// The one value is the array `[1; N]`.
 impl<T: One, const N: usize> One for Array<T, N> {
     fn one() -> Self {
-        Self(std::array::from_fn(|_| T::one()))
+        Self::from_fn(|_| T::one())
     }
 
     fn is_one(&self) -> bool {
-        self.as_ref().iter().all(T::is_one)
+        self.iter().all(T::is_one)
     }
 }
 
+/// Element-wise negation.
 impl<T: Neg, const N: usize> Neg for Array<T, N> {
     fn neg(&self) -> Self {
-        todo!()
-        //self.map(T::neg)
+        self.map(T::neg)
     }
 
     fn neg_mut(&mut self) {
-        todo!()
-        //self.map_mut(T::neg_mut);
+        self.map_mut(T::neg_mut);
     }
 }
 
+/// Element-wise inversion.
 impl<T: Inv, const N: usize> Inv for Array<T, N> {
     fn inv(&self) -> Self {
-        todo!()
-        //self.map(T::inv)
+        self.map(T::inv)
     }
 
     fn inv_mut(&mut self) {
-        todo!()
-        //self.map_mut(T::inv_mut)
+        self.map_mut(T::inv_mut)
     }
 }
 
+/// Element-wise addition.
 impl<T: Add, const N: usize> Add for Array<T, N> {
     fn add(&self, x: &Self) -> Self {
-        todo!()
-        //self.pairwise(x, T::add)
+        self.pairwise(x, T::add)
     }
 
     fn add_mut(&mut self, x: &Self) {
-        todo!()
-        //self.pairwise_mut(x, T::add_mut);
+        self.pairwise_mut(x, T::add_mut);
     }
 
     fn double(&self) -> Self {
-        todo!()
-        //self.map(T::double)
+        self.map(T::double)
     }
 
     fn double_mut(&mut self) {
-        todo!()
-        //self.map_mut(T::double_mut);
+        self.map_mut(T::double_mut);
     }
 }
 
+/// Element-wise multiplication.
 impl<T: Mul, const N: usize> Mul for Array<T, N> {
     fn mul(&self, x: &Self) -> Self {
-        todo!()
-        //self.pairwise(x, T::mul)
+        self.pairwise(x, T::mul)
     }
 
     fn mul_mut(&mut self, x: &Self) {
-        todo!()
-        //self.pairwise_mut(x, T::mul_mut);
+        self.pairwise_mut(x, T::mul_mut);
     }
 
     fn sq(&self) -> Self {
-        todo!()
-        //self.map(T::sq)
+        self.map(T::sq)
     }
 
     fn sq_mut(&mut self) {
-        todo!()
-        //self.map_mut(T::sq_mut);
+        self.map_mut(T::sq_mut);
     }
 }
 
 impl<T: CommAdd, const N: usize> CommAdd for Array<T, N> {}
 impl<T: CommMul, const N: usize> CommMul for Array<T, N> {}
 
+/// Element-wise subtraction.
 impl<T: Sub, const N: usize> Sub for Array<T, N> {
     fn sub(&self, x: &Self) -> Self {
         self.pairwise(x, T::sub)
@@ -171,6 +214,7 @@ impl<T: Sub, const N: usize> Sub for Array<T, N> {
     }
 }
 
+/// Element-wise division.
 impl<T: Div, const N: usize> Div for Array<T, N> {
     fn div(&self, x: &Self) -> Self {
         self.pairwise(x, T::div)
@@ -187,30 +231,43 @@ impl<T: AddGroup, const N: usize> AddGroup for Array<T, N> {}
 impl<T: MulGroup, const N: usize> MulGroup for Array<T, N> {}
 impl<T: Ring, const N: usize> Ring for Array<T, N> {}
 
+/// Arrays are a one-dimensional list.
 impl<T, const N: usize> List<U1> for Array<T, N> {
     type Item = T;
     const SIZE: CSingle<Dim> = CSingle(Dim::Fin(N));
 
-    fn coeff_ref(&self, i: CSingle<usize>) -> Option<&Self::Item> {
-        self.as_ref().get(i.0)
+    fn coeff_ref_gen(&self, index: &CSingle<usize>) -> Option<&Self::Item> {
+        self.get(index.0)
     }
 
-    unsafe fn coeff_set_unchecked(&mut self, i: CSingle<usize>, x: Self::Item) {
-        *self.as_mut().get_unchecked(i.0) = x;
+    unsafe fn coeff_set_unchecked_gen(
+        &mut self,
+        index: &CSingle<usize>,
+        value: Self::Item,
+    ) {
+        *self.as_mut().get_unchecked_mut(index.0) = value;
     }
 
-    
+    fn map<F: Fn(&Self::Item) -> Self::Item>(&self, f: F) -> Self {
+        Self(std::array::from_fn(|i| f(&self[i])))
+    }
+
+    fn map_mut<F: Fn(&mut Self::Item)>(&mut self, f: F) {
+        for i in 0..N {
+            f(&mut self[i]);
+        }
+    }
 }
 
 impl<T: Ring, const N: usize> Module<U1> for Array<T, N> {
-    fn smul(&self, x: &T) -> Self {
-        todo!()
-        //self.map(|y| y.mul(x))
-    }
+    fn dot(&self, x: &Self) -> Self::Item {
+        let mut res = Self::Item::zero();
 
-    fn smul_mut(&mut self, x: &T) {
-        todo!()
-        //self.map_mut(|y| y.mul_mut(x));
+        for i in 0..N {
+            res.add_mut(&self[i].mul(&x[i]));
+        }
+
+        res
     }
 }
 
@@ -227,5 +284,108 @@ where
 {
     fn support(&self) -> usize {
         N
+    }
+}
+
+impl<C: TypeNum, V: List<C>, const N: usize> List<Succ<C>> for Array<V, N> {
+    type Item = V::Item;
+    const SIZE: CPair<Dim, C::Array<Dim>> = CPair(Dim::Fin(N), V::SIZE);
+
+    fn coeff_ref_gen(
+        &self,
+        index: &CPair<usize, <C as TypeNum>::Array<usize>>,
+    ) -> Option<&Self::Item> {
+        self[index.0].coeff_ref_gen(&index.1)
+    }
+
+    unsafe fn coeff_set_unchecked_gen(
+        &mut self,
+        index: &<Succ<C> as TypeNum>::Array<usize>,
+        value: Self::Item,
+    ) {
+        self[index.0].coeff_set_unchecked_gen(&index.1, value);
+    }
+
+    fn map<F: Fn(&Self::Item) -> Self::Item>(&self, f: F) -> Self {
+        Self::from_fn(|i| self[i].map(&f))
+    }
+
+    fn map_mut<F: Fn(&mut Self::Item)>(&mut self, f: F) {
+        for x in self.iter_mut() {
+            x.map_mut(&f);
+        }
+    }
+}
+
+impl<C: TypeNum, V: Module<C>, const N: usize> Module<Succ<C>> for Array<V, N>
+where
+    V::Item: Ring,
+{
+    fn dot(&self, x: &Self) -> Self::Item {
+        let mut res = V::Item::zero();
+
+        for i in 0..N {
+            res.add_mut(&self[i].dot(&x[i]));
+        }
+
+        res
+    }
+}
+
+impl<V: LinearModule, const N: usize> Matrix for Array<V, N>
+where
+    V::Item: Ring,
+{
+    const DIR: Direction = Direction::Row;
+
+    fn col_support(&self, _: usize) -> usize {
+        N
+    }
+
+    fn row_support(&self, index: usize) -> usize {
+        self.get(index).map_or(0, V::support)
+    }
+
+    fn height(&self) -> usize {
+        N
+    }
+
+    fn width(&self) -> usize {
+        (0..N)
+            .map(|i| self.row_support(i))
+            .max()
+            .unwrap_or_default()
+    }
+
+    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
+        mut iter: J,
+    ) -> Self {
+        let mut res = Self::zero();
+
+        for i in 0..N {
+            if let Some(iter) = iter.next() {
+                res[i] = iter.collect();
+            } else {
+                break;
+            }
+        }
+
+        res
+    }
+
+    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
+        iter: J,
+    ) -> Self {
+        let mut res = Self::zero();
+
+        for (j, mut iter) in iter.enumerate() {
+            for i in 0..N {
+                if let Some(x) = iter.next() {
+                    res[i].coeff_set(j, x);
+                }
+            }
+        }
+
+        res
     }
 }

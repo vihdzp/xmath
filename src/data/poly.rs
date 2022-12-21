@@ -2,7 +2,8 @@
 //! bivariate polynomials [`Poly2`].
 
 use crate::traits::basic::*;
-use crate::traits::dim::U1;
+use crate::traits::dim::*;
+use crate::{ctuple, tuple};
 use std::cmp::Ordering::*;
 use std::fmt::Write;
 
@@ -33,10 +34,17 @@ pub fn trim<T: Zero>(v: &mut Vec<T>) {
     }
 }
 
+/// Returns a reference to the inner slice.
+impl<T: Zero> AsRef<[T]> for Poly<T> {
+    fn as_ref(&self) -> &[T] {
+        &self.0
+    }
+}
+
 impl<T: Zero> Poly<T> {
     /// Returns a reference to the inner slice.
     pub fn as_slice(&self) -> &[T] {
-        &self.0
+        self.as_ref()
     }
 
     /// Returns a mutable reference to the inner slice.
@@ -52,21 +60,27 @@ impl<T: Zero> Poly<T> {
     ///
     /// ## Safety
     ///
-    /// The last entry must remain nonzero after modifying the inner slice.
+    /// The last entry must remain nonzero after modifying the inner vector.
     pub unsafe fn as_vec_mut(&mut self) -> &mut Vec<T> {
         &mut self.0
+    }
+
+    /// Returns an iterator over the inner slice.
+    pub fn iter(&self) -> std::slice::Iter<T> {
+        self.as_ref().iter()
     }
 
     /// Creates a polynomial with the specified backing vector.
     ///
     /// ## Safety
     ///
-    /// The vector must not have a zero last entry.
+    /// The vector must have a non-zero last entry.
     pub unsafe fn new_unchecked(v: Vec<T>) -> Self {
         Self(v)
     }
 
-    /// Creates a polynomial with the specified backing vector.
+    /// Creates a polynomial with the specified backing vector. Automatically
+    /// trims any leading zeros.
     pub fn new(mut v: Vec<T>) -> Self {
         trim(&mut v);
 
@@ -78,6 +92,37 @@ impl<T: Zero> Poly<T> {
     /// polynomial.
     pub fn len(&self) -> usize {
         self.as_slice().len()
+    }
+
+    /// Gets a reference to the entry in a given index.
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.as_slice().get(index)
+    }
+
+    /// Sets a given index with a given value.
+    pub fn set(&mut self, index: usize, value: T) {
+        match (self.len() + 1).cmp(&index) {
+            // Safety: the leading coefficient isn't modified.
+            Greater => unsafe { self.as_slice_mut()[index] = value },
+
+            // Safety: we trim the vector at the end.
+            Equal => unsafe {
+                let vec = self.as_vec_mut();
+                vec[index] = value;
+                trim(vec);
+            },
+
+            // Safety: the leading coefficient is not zero.
+            Less => {
+                if !value.is_zero() {
+                    unsafe {
+                        let vec = self.as_vec_mut();
+                        vec.resize_with(index, T::zero);
+                        vec.push(value);
+                    }
+                }
+            }
+        }
     }
 
     /// The degree of the polynomial. Returns `None` for the zero polynomial.
@@ -144,6 +189,7 @@ impl<T: Zero> From<Vec<T>> for Poly<T> {
     }
 }
 
+/// Iterates over the coefficients of the polynomial.
 impl<T: Zero> IntoIterator for Poly<T> {
     type Item = T;
     type IntoIter = std::vec::IntoIter<T>;
@@ -153,6 +199,7 @@ impl<T: Zero> IntoIterator for Poly<T> {
     }
 }
 
+/// Calls [`Poly::fmt_with`] with the default variable name `x`.
 impl<T: Zero + std::fmt::Display> std::fmt::Display for Poly<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.fmt_with(f, 'x')
@@ -435,35 +482,32 @@ impl<T: Ring + ZeroNeOne> MulMonoid for Poly<T> {}
 impl<T: Ring + ZeroNeOne> Ring for Poly<T> {}
 
 impl<T: Zero> List<U1> for Poly<T> {
+    const SIZE: ctuple!(Dim; 1) = tuple!(Dim::Inf);
     type Item = T;
 
-    fn coeff_ref(&self, i: usize) -> Option<&T> {
-        self.as_slice().get(i)
+    fn coeff_ref_gen(&self, i: &CSingle<usize>) -> Option<&Self::Item> {
+        self.as_slice().get(i.0)
     }
 
-    fn coeff_set(&mut self, i: usize, x: T) {
-        if x.is_zero() {
-            match (i + 1).cmp(&self.len()) {
-                // Safety: the leading coefficient isn't changed.
-                Less => unsafe {
-                    self.as_slice_mut()[i] = x;
-                },
-                Equal => {
-                    self.pop();
-                }
-                Greater => {}
+    unsafe fn coeff_set_unchecked_gen(
+        &mut self,
+        index: &CSingle<usize>,
+        value: Self::Item,
+    ) {
+        self.set(index.0, value);
+    }
+
+    fn map<F: Fn(&Self::Item) -> Self::Item>(&self, f: F) -> Self {
+        self.iter().map(f).collect()
+    }
+
+    fn map_mut<F: Fn(&mut Self::Item)>(&mut self, f: F) {
+        // Safety: we trim the vector at the end.
+        unsafe {
+            for i in 0..self.len() {
+                f(&mut self.as_slice_mut()[i]);
             }
-        } else if i < self.len() {
-            // Safety: the leading coefficient remains nonzero.
-            unsafe {
-                self.as_slice_mut()[i] = x;
-            }
-        } else {
-            // Safety: the leading coefficient remains nonzero.
-            unsafe {
-                self.as_vec_mut().resize_with(i + 1, T::zero);
-                self.as_slice_mut()[i] = x;
-            }
+            trim(self.as_vec_mut());
         }
     }
 }
@@ -495,6 +539,16 @@ impl<T: Ring> Module<U1> for Poly<T> {
             }
         }
     }
+
+    fn dot(&self, x: &Self) -> Self::Item {
+        let mut res = Self::Item::zero();
+
+        for i in 0..self.len().min(x.len()) {
+            res.add_mut(&self[i].mul(&x[i]));
+        }
+
+        res
+    }
 }
 
 impl<T: Zero> FromIterator<T> for Poly<T> {
@@ -506,6 +560,126 @@ impl<T: Zero> FromIterator<T> for Poly<T> {
 impl<T: Ring> LinearModule for Poly<T> {
     fn support(&self) -> usize {
         self.len()
+    }
+}
+
+impl<C: TypeNum, V: List<C> + Zero> List<Succ<C>> for Poly<V> {
+    type Item = V::Item;
+    const SIZE: CPair<Dim, C::Array<Dim>> = CPair(Dim::Inf, V::SIZE);
+
+    fn coeff_ref_gen(
+        &self,
+        index: &CPair<usize, C::Array<usize>>,
+    ) -> Option<&Self::Item> {
+        self.get(index.0)?.coeff_ref_gen(&index.1)
+    }
+
+    unsafe fn coeff_set_unchecked_gen(
+        &mut self,
+        index: &CPair<usize, C::Array<usize>>,
+        value: Self::Item,
+    ) {
+        match (self.len() + 1).cmp(&index.0) {
+            // Safety: the leading coefficient isn't modified.
+            Greater => self.as_slice_mut()[index.0]
+                .coeff_set_unchecked_gen(&index.1, value),
+
+            // Safety: we trim the vector at the end.
+            Equal => {
+                let vec = self.as_vec_mut();
+                vec[index.0].coeff_set_unchecked_gen(&index.1, value);
+                trim(vec);
+            }
+
+            // Safety: the leading coefficient is not zero.
+            Less => {
+                let mut inner = V::zero();
+                inner.coeff_set_unchecked_gen(&index.1, value);
+                self.set(index.0, inner);
+            }
+        }
+    }
+
+    fn map<F: Fn(&Self::Item) -> Self::Item>(&self, f: F) -> Self {
+        self.iter().map(|x| x.map(&f)).collect()
+    }
+
+    fn map_mut<F: Fn(&mut Self::Item)>(&mut self, f: F) {
+        // Safety: we trim the vector at the end.
+        unsafe {
+            let vec = self.as_vec_mut();
+            for x in vec.iter_mut() {
+                x.map_mut(&f);
+            }
+            trim(vec);
+        }
+    }
+}
+
+impl<C: TypeNum, V: Module<C>> Module<Succ<C>> for Poly<V>
+where
+    V::Item: Ring,
+{
+    fn dot(&self, x: &Self) -> Self::Item {
+        let mut res = V::Item::zero();
+
+        for (i, j) in self.iter().zip(x.iter()) {
+            res.add_mut(&i.dot(j));
+        }
+
+        res
+    }
+}
+
+impl<V: LinearModule> Matrix for Poly<V>
+where
+    V::Item: Ring,
+{
+    const DIR: Direction = Direction::Row;
+
+    fn col_support(&self, _: usize) -> usize {
+        self.len()
+    }
+
+    fn row_support(&self, index: usize) -> usize {
+        self.get(index).map_or(0, V::support)
+    }
+
+    fn height(&self) -> usize {
+        self.len()
+    }
+
+    fn width(&self) -> usize {
+        (0..self.len())
+            .map(|i| self.row_support(i))
+            .max()
+            .unwrap_or_default()
+    }
+
+    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
+        iter: J,
+    ) -> Self {
+        let mut res = Vec::new();
+
+        for iter in iter {
+            res.push(iter.collect());
+        }
+
+        res.into()
+    }
+
+    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
+        iter: J,
+    ) -> Self {
+        let mut res = Self::zero();
+
+        for (col, iter) in iter.enumerate() {
+            for (row, x) in iter.enumerate() {
+                res.coeff_set(row, col, x);
+            }
+        }
+
+        res
     }
 }
 

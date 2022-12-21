@@ -1,4 +1,7 @@
-use crate::traits::{matrix::Matrix, basic::*};
+use crate::traits::{
+    basic::*,
+    matrix::{size_height, size_width, Matrix},
+};
 
 /// Computes the addition of two matrices and writes the output in a new
 /// matrix. No size check is performed.
@@ -20,9 +23,7 @@ where
         m.height().max(n.height()),
         m.width().max(n.width()),
         |i, j| {
-            if let (Some(x), Some(y)) =
-                (m.coeff_ref((i, j)), n.coeff_ref((i, j)))
-            {
+            if let (Some(x), Some(y)) = (m.coeff_ref(i, j), n.coeff_ref(i, j)) {
                 x.add(y)
             } else {
                 M::Item::zero()
@@ -31,7 +32,7 @@ where
     )
 }
 
-/// Does a compile-time size check and then calls [`Matrix::madd_trim`].
+/// Does a compile-time size check and then calls [`madd_trim`].
 ///
 /// Various types have their own `madd` convenience method which
 /// autocompletes the matrix types, at a slight cost to generality.
@@ -44,16 +45,8 @@ where
 /// - The widths of `M`, `N`, `K` are equal.
 pub fn madd_gen<
     M: Matrix,
-    N: Matrix<
-        Item = M::Item,
-        HeightType = M::HeightType,
-        WidthType = M::WidthType,
-    >,
-    K: Matrix<
-        Item = M::Item,
-        HeightType = M::HeightType,
-        WidthType = M::WidthType,
-    >,
+    N: Matrix<Item = M::Item>,
+    K: Matrix<Item = M::Item>,
 >(
     m: &M,
     n: &N,
@@ -61,14 +54,14 @@ pub fn madd_gen<
 where
     M::Item: Ring,
 {
-    if M::HEIGHT == N::HEIGHT
-        && M::HEIGHT == K::HEIGHT
-        && M::WIDTH == N::WIDTH
-        && M::WIDTH == K::WIDTH
+    if size_height::<M>() == size_height::<N>()
+        && size_height::<M>() == size_height::<K>()
+        && size_width::<M>() == size_width::<N>()
+        && size_width::<M>() == size_width::<K>()
     {
         madd_trim(m, n)
     } else {
-        panic!("{}", crate::DIM_MISMATCH)
+        panic!("{}", crate::SIZE_MISMATCH)
     }
 }
 
@@ -92,9 +85,7 @@ where
         let mut z = M::Item::zero();
 
         for k in 0..m.row_support(i).min(n.col_support(j)) {
-            if let (Some(x), Some(y)) =
-                (m.coeff_ref((i, k)), n.coeff_ref((k, j)))
-            {
+            if let (Some(x), Some(y)) = (m.coeff_ref(i, k), n.coeff_ref(i, j)) {
                 z.add_mut(&x.mul(y));
             }
         }
@@ -117,12 +108,8 @@ where
 /// - The width of `N` equals the width of `K`.
 pub fn mmul_gen<
     M: Matrix,
-    N: Matrix<Item = M::Item, HeightType = M::WidthType>,
-    K: Matrix<
-        Item = M::Item,
-        HeightType = M::HeightType,
-        WidthType = N::WidthType,
-    >,
+    N: Matrix<Item = M::Item>,
+    K: Matrix<Item = M::Item>,
 >(
     m: &M,
     n: &N,
@@ -130,9 +117,12 @@ pub fn mmul_gen<
 where
     M::Item: Ring,
 {
-    if M::HEIGHT == K::HEIGHT && M::WIDTH == N::HEIGHT && N::WIDTH == K::WIDTH {
+    if size_height::<M>() == size_height::<K>()
+        && size_width::<N>() == size_width::<K>()
+        && size_width::<M>() == size_height::<N>()
+    {
         mmul_trim(m, n)
     } else {
-        panic!("{}", crate::DIM_MISMATCH)
+        panic!("{}", crate::SIZE_MISMATCH)
     }
 }

@@ -26,5 +26,5 @@
 //! with the understanding that it should only happen in extreme cases.
 
 pub mod basic;
-pub mod matrix;
 pub mod dim;
+pub mod matrix;

@@ -4,7 +4,11 @@
 use super::aliases::NonZero;
 use crate::{
     derive_add, derive_div, derive_mul, derive_neg, derive_sub,
-    traits::{basic::*, dim::TypeNum, matrix::*},
+    traits::{
+        basic::*,
+        dim::{ConstZero, TypeNum},
+        matrix::*,
+    },
 };
 use std::fmt::{Display, Write};
 
@@ -160,18 +164,35 @@ impl<T> Ring for Empty<T> {}
 
 impl<T, C: TypeNum> List<C> for Empty<T> {
     type Item = T;
-    const SIZE: C = C::ZERO;
+    const SIZE: C::Array<Dim> = C::Array::<Dim>::ZERO;
 
-    fn coeff_ref(&self, _: C::Array<usize>) -> Option<&Self::Item> {
+    fn coeff_ref_gen(
+        &self,
+        _: &<C as TypeNum>::Array<usize>,
+    ) -> Option<&Self::Item> {
         None
     }
 
-    fn coeff_set(&mut self, _: C::Array<usize>, _: Self::Item) {
-        panic!("type has no coefficients")
+    unsafe fn coeff_set_unchecked_gen(
+        &mut self,
+        _: &<C as TypeNum>::Array<usize>,
+        _: Self::Item,
+    ) {
+        unreachable!()
     }
+
+    fn map<F: Fn(&Self::Item) -> Self::Item>(&self, _: F) -> Self {
+        Self::new()
+    }
+
+    fn map_mut<F: Fn(&mut Self::Item)>(&mut self, _: F) {}
 }
 
-impl<T: Ring, C: TypeNum> Module<C> for Empty<T> {}
+impl<T: Ring, C: TypeNum> Module<C> for Empty<T> {
+    fn dot(&self, _: &Self) -> Self::Item {
+        Self::Item::zero()
+    }
+}
 
 impl<T> FromIterator<T> for Empty<T> {
     fn from_iter<I: IntoIterator<Item = T>>(_: I) -> Self {

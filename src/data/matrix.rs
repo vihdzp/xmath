@@ -9,90 +9,11 @@
 use super::array::Array;
 use super::poly::Poly;
 use crate::algs::matrix::*;
+use crate::traits::dim::{CPair, TypeNum};
 use crate::traits::matrix::*;
 use crate::{data::aliases::Transpose, traits::basic::*};
-
-impl<C: Dims, V: List<C>, const N: usize> List<(usize, C)> for Array<V, N> {
-    type Item = V::Item;
-    const SIZE: (usize, C) = (N, V::SIZE);
-
-    fn coeff_ref(&self, i: (usize, C::Array<usize>)) -> Option<&V::Item> {
-        <Self as List<usize>>::coeff_ref(self, i.0)?.coeff_ref(i.1)
-    }
-
-    fn coeff_set(&mut self, i: (usize, C::Array<usize>), x: V::Item) {
-        self[i.0].coeff_set(i.1, x);
-    }
-}
-
-impl<C: Dims, V: Module<C>, const N: usize> Module<(usize, C)> for Array<V, N> where
-    V::Item: Ring
-{
-}
-
-impl<C: Dim, V: LinearModule<C>, const N: usize> Matrix for Array<V, N>
-where
-    V::Item: Ring,
-{
-    type HeightType = usize;
-    type WidthType = V::DimType;
-
-    const HEIGHT: Self::HeightType = N;
-    const WIDTH: Self::WidthType = V::DIM;
-    const DIR: Direction = Direction::Row;
-
-    fn col_support(&self, _: usize) -> usize {
-        N
-    }
-
-    fn row_support(&self, i: usize) -> usize {
-        todo!()
-        //self.coeff_ref(i).map_or(0, V::support)
-    }
-
-    fn height(&self) -> usize {
-        N
-    }
-
-    fn width(&self) -> usize {
-        (0..N)
-            .map(|i| self.row_support(i))
-            .max()
-            .unwrap_or_default()
-    }
-
-    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        mut iter: J,
-    ) -> Self {
-        let mut res = Self::zero();
-
-        for i in 0..N {
-            if let Some(iter) = iter.next() {
-                res[i] = iter.collect();
-            } else {
-                break;
-            }
-        }
-
-        res
-    }
-
-    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        iter: J,
-    ) -> Self {
-        let mut res = Self::zero();
-
-        for (j, mut iter) in iter.enumerate() {
-            for i in 0..N {
-                if let Some(x) = iter.next() {
-                    res[i].coeff_set(j, x);
-                }
-            }
-        }
-
-        res
-    }
-}
+use std::cmp::Ordering::*;
+use xmath_core::Succ;
 
 /// An alias for an M × N statically sized matrix.
 pub type MatrixMN<T, const M: usize, const N: usize> = Array<Array<T, N>, M>;
@@ -124,7 +45,7 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
             // Safety: matrices of the same size have the same layout.
             unsafe { crate::transmute_gen(self) }
         } else {
-            panic!("{}", crate::DIM_MISMATCH)
+            panic!("{}", crate::SIZE_MISMATCH)
         }
     }
 
@@ -141,7 +62,7 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
             // Safety: we've performed the size check.
             unsafe { &*(self as *const Self).cast() }
         } else {
-            panic!("{}", crate::DIM_MISMATCH)
+            panic!("{}", crate::SIZE_MISMATCH)
         }
     }
 
@@ -159,87 +80,8 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
             // Safety: we've performed the size check.
             unsafe { &mut *(self as *mut Self).cast() }
         } else {
-            panic!("{}", crate::DIM_MISMATCH)
+            panic!("{}", crate::SIZE_MISMATCH)
         }
-    }
-}
-
-impl<C: Dims, V: List<C> + Zero> List<(Inf, C)> for Poly<V> {
-    type Item = V::Item;
-
-    fn size() -> (Inf, C) {
-        (Inf, V::size())
-    }
-
-    fn coeff_ref(&self, i: (usize, C)) -> Option<&V::Item> {
-        self.coeff_ref(i.0)?.coeff_ref(i.1)
-    }
-
-    fn coeff_set(&mut self, i: (usize, C), x: V::Item) {
-        // Safety: we trim at the end.
-        unsafe {
-            self.as_slice_mut()[i.0].coeff_set(i.1, x);
-            crate::data::poly::trim(self.as_vec_mut());
-        }
-    }
-}
-
-impl<C: Dims, V: Module<C>> Module<(Inf, C)> for Poly<V> where V::Item: Ring {}
-
-impl<V: LinearModule> Matrix for Poly<V>
-where
-    V::Item: Ring,
-{
-    type HeightType = Inf;
-    type WidthType = V::DimType;
-
-    const HEIGHT: Self::HeightType = Inf;
-    const WIDTH: Self::WidthType = V::DIM;
-    const DIR: Direction = Direction::Row;
-
-    fn col_support(&self, _: usize) -> usize {
-        self.len()
-    }
-
-    fn row_support(&self, i: usize) -> usize {
-        self.coeff_ref(i).map_or(0, V::support)
-    }
-
-    fn height(&self) -> usize {
-        self.len()
-    }
-
-    fn width(&self) -> usize {
-        (0..self.len())
-            .map(|i| self.row_support(i))
-            .max()
-            .unwrap_or_default()
-    }
-
-    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        iter: J,
-    ) -> Self {
-        let mut res = Vec::new();
-
-        for iter in iter {
-            res.push(iter.collect());
-        }
-
-        res.into()
-    }
-
-    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        iter: J,
-    ) -> Self {
-        let mut res = Self::zero();
-
-        for (j, iter) in iter.enumerate() {
-            for (i, x) in iter.enumerate() {
-                res.coeff_set((i, j), x);
-            }
-        }
-
-        res
     }
 }
 
@@ -263,7 +105,7 @@ pub type RowVec<T> = Array<T, 1>;
 
 impl<T> RowVec<T> {
     /// Creates a new row vector.
-    pub fn new(x: T) -> Self {
+    pub fn new_row(x: T) -> Self {
         Self([x])
     }
 
@@ -279,7 +121,7 @@ pub type ColVec<T> = Transpose<RowVec<T>>;
 impl<T> ColVec<T> {
     /// Creates a new column vector.
     pub fn new(x: T) -> Self {
-        Self(RowVec::new(x))
+        Self(RowVec::new_row(x))
     }
 
     /// Gets the inner vector.
