@@ -2,14 +2,7 @@
 //! implementations.
 
 use super::aliases::NonZero;
-use crate::{
-    derive_add, derive_div, derive_mul, derive_neg, derive_sub,
-    traits::{
-        basic::*,
-        dim::{ConstZero, TypeNum},
-        matrix::*,
-    },
-};
+use crate::{traits::basic::*, *};
 use std::fmt::{Display, Write};
 
 /// The trivial structure with a single element.
@@ -79,169 +72,11 @@ impl AddGroup for I {}
 impl MulGroup for I {}
 impl Ring for I {}
 
-/// The empty list of a given type.
-///
-/// ## Internal representation
-///
-/// This contains a single `PhantomData<T>` field.
-#[derive(Debug)]
-pub struct Empty<T>(std::marker::PhantomData<T>);
-
-impl<T> Default for Empty<T> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
-
-impl<T> PartialEq for Empty<T> {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
-}
-
-impl<T> Eq for Empty<T> {}
-
-impl<T> Empty<T> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl<T> Clone for Empty<T> {
-    fn clone(&self) -> Self {
-        Self::new()
-    }
-}
-
-impl<T> Copy for Empty<T> {}
-
-impl<T> Zero for Empty<T> {
-    fn zero() -> Self {
-        Self::new()
-    }
-}
-
-impl<T> One for Empty<T> {
-    fn one() -> Self {
-        Self::new()
-    }
-}
-
-impl<T> Neg for Empty<T> {
-    fn neg(&self) -> Self {
-        Self::new()
-    }
-}
-
-impl<T> Inv for Empty<T> {
-    fn inv(&self) -> Self {
-        Self::new()
-    }
-}
-
-impl<T> Add for Empty<T> {
-    fn add(&self, _: &Self) -> Self {
-        Self::new()
-    }
-}
-
-impl<T> Mul for Empty<T> {
-    fn mul(&self, _: &Self) -> Self {
-        Self::new()
-    }
-}
-
-impl<T> IntegralDomain for Empty<T> {}
-impl<T> CommAdd for Empty<T> {}
-impl<T> CommMul for Empty<T> {}
-impl<T> Sub for Empty<T> {}
-impl<T> Div for Empty<T> {}
-impl<T> AddMonoid for Empty<T> {}
-impl<T> MulMonoid for Empty<T> {}
-impl<T> AddGroup for Empty<T> {}
-impl<T> MulGroup for Empty<T> {}
-impl<T> Ring for Empty<T> {}
-
-impl<T, C: TypeNum> List<C> for Empty<T> {
-    type Item = T;
-    const SIZE: C::Array<Dim> = C::Array::<Dim>::ZERO;
-
-    fn coeff_ref_gen(
-        &self,
-        _: &<C as TypeNum>::Array<usize>,
-    ) -> Option<&Self::Item> {
-        None
-    }
-
-    unsafe fn coeff_set_unchecked_gen(
-        &mut self,
-        _: &<C as TypeNum>::Array<usize>,
-        _: Self::Item,
-    ) {
-        unreachable!()
-    }
-
-    fn map<F: Fn(&Self::Item) -> Self::Item>(&self, _: F) -> Self {
-        Self::new()
-    }
-
-    fn map_mut<F: Fn(&mut Self::Item)>(&mut self, _: F) {}
-}
-
-impl<T: Ring, C: TypeNum> Module<C> for Empty<T> {
-    fn dot(&self, _: &Self) -> Self::Item {
-        Self::Item::zero()
-    }
-}
-
-impl<T> FromIterator<T> for Empty<T> {
-    fn from_iter<I: IntoIterator<Item = T>>(_: I) -> Self {
-        Self::new()
-    }
-}
-
-impl<T: Ring> LinearModule for Empty<T> {
-    fn support(&self) -> usize {
-        0
-    }
-}
-
-impl<T: Ring> Matrix for Empty<T> {
-    const DIR: Direction = Direction::Either;
-
-    fn col_support(&self, _: usize) -> usize {
-        0
-    }
-
-    fn row_support(&self, _: usize) -> usize {
-        0
-    }
-
-    fn height(&self) -> usize {
-        0
-    }
-
-    fn width(&self) -> usize {
-        0
-    }
-
-    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        _: J,
-    ) -> Self {
-        Self::new()
-    }
-
-    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        _: J,
-    ) -> Self {
-        Self::new()
-    }
-}
-
 /// A pair of elements.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pair<T, U>(pub T, pub U);
 
+/// The pair (0, 0).
 impl<T: Zero, U: Zero> Zero for Pair<T, U> {
     fn zero() -> Self {
         Self(T::zero(), U::zero())
@@ -252,6 +87,7 @@ impl<T: Zero, U: Zero> Zero for Pair<T, U> {
     }
 }
 
+/// The pair (1, 1).
 impl<T: One, U: One> One for Pair<T, U> {
     fn one() -> Self {
         Self(T::one(), U::one())
@@ -265,6 +101,7 @@ impl<T: One, U: One> One for Pair<T, U> {
 // Really one of these suffices, but unfortunately we can't implement this.
 impl<T: ZeroNeOne, U: ZeroNeOne> ZeroNeOne for Pair<T, U> {}
 
+/// Element-wise negation.
 impl<T: Neg, U: Neg> Neg for Pair<T, U> {
     fn neg(&self) -> Self {
         Self(self.0.neg(), self.1.neg())
@@ -276,6 +113,7 @@ impl<T: Neg, U: Neg> Neg for Pair<T, U> {
     }
 }
 
+/// Element-wise inverse.
 impl<T: Inv, U: Inv> Inv for Pair<T, U> {
     fn inv(&self) -> Self {
         Self(self.0.inv(), self.1.inv())
@@ -534,7 +372,8 @@ impl Field for F2 {}
 ///
 /// ## Internal representation
 ///
-/// This is an enum with values `ZERO = 0`, `ONE = 1`, and `TWO = 2`.
+/// This is an enum backed by a `u8` with values `ZERO = 0`, `ONE = 1`, and
+/// `TWO = 2`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u8)]
 pub enum F3 {
@@ -640,6 +479,142 @@ impl MulGroup for NonZero<F3> {}
 impl ZeroGroup for F3 {}
 impl Ring for F3 {}
 impl Field for F3 {}
+
+/// The sign of an integer. As a mathematical structure, this is a [`Field`]
+/// isomorphic to [`F3`].
+///
+/// ## Internal representation
+///
+/// This is an enum backed by an `i8` with values `ZERO = 0`, `POS = 1`, and
+/// `NEG = -1`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(i8)]
+pub enum Sign {
+    /// The zero value.
+    #[default]
+    ZERO = 0,
+
+    /// The positive value.
+    POS = 1,
+
+    /// The negative value.
+    NEG = -1,
+}
+
+impl From<i8> for Sign {
+    fn from(x: i8) -> Self {
+        // Safety: `F3` has the same representation as `u8`, and any possible
+        // value of this expression is valid for `F3` (we cast to `i16` to avoid
+        // overflows).
+        unsafe { std::mem::transmute(((x as i16 + 1) % 3 - 1) as i8) }
+    }
+}
+
+/// The field isomorphism between [`F3`] and [`Sign`].
+impl From<F3> for Sign {
+    fn from(value: F3) -> Self {
+        match value {
+            F3::ZERO => Self::ZERO,
+            F3::ONE => Self::POS,
+            F3::TWO => Self::NEG,
+        }
+    }
+}
+
+/// The field isomorphism between [`F3`] and [`Sign`].
+impl From<Sign> for F3 {
+    fn from(value: Sign) -> Self {
+        match value {
+            Sign::ZERO => Self::ZERO,
+            Sign::POS => Self::ONE,
+            Sign::NEG => Self::TWO,
+        }
+    }
+}
+
+impl Display for Sign {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Sign::ZERO => f.write_char('0'),
+            Sign::POS => f.write_char('1'),
+            Sign::NEG => f.write_str("-1"),
+        }
+    }
+}
+
+impl Zero for Sign {
+    fn zero() -> Self {
+        Self::ZERO
+    }
+}
+
+impl One for Sign {
+    fn one() -> Self {
+        Self::POS
+    }
+}
+
+impl ZeroNeOne for Sign {}
+
+impl Neg for Sign {
+    fn neg(&self) -> Self {
+        (-*self as i8).into()
+    }
+}
+
+derive_neg!(Sign);
+
+impl Add for Sign {
+    fn add(&self, x: &Self) -> Self {
+        (*self as i8 + *x as i8).into()
+    }
+}
+
+derive_add!(Sign);
+
+impl Mul for Sign {
+    fn mul(&self, x: &Self) -> Self {
+        (*self as i8 * *x as i8).into()
+    }
+}
+
+derive_mul!(Sign);
+
+impl CommAdd for Sign {}
+impl CommMul for Sign {}
+impl Sub for Sign {}
+
+derive_sub!(Sign);
+
+impl AddMonoid for Sign {}
+impl MulMonoid for Sign {}
+impl AddGroup for Sign {}
+impl IntegralDomain for Sign {}
+
+impl NonZero<Sign> {
+    /// The one value.
+    pub const POS: Self = unsafe { NonZero::new_unchecked(Sign::POS) };
+
+    /// The negative one value.
+    pub const NEG: Self = unsafe { NonZero::new_unchecked(Sign::NEG) };
+}
+
+derive_mul!(NonZero<Sign>);
+
+impl Inv for NonZero<Sign> {
+    fn inv(&self) -> Self {
+        *self
+    }
+}
+
+impl Div for NonZero<Sign> {}
+
+derive_div!(NonZero<Sign>);
+
+impl MulGroup for NonZero<Sign> {}
+impl ZeroGroup for Sign {}
+impl Ring for Sign {}
+impl Field for Sign {}
 
 /// The field with four elements. It consists of values `0`, `1`, `X`, `Y`.
 ///

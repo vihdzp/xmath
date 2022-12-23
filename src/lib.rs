@@ -8,7 +8,11 @@
 //!
 //! ## Features
 //!
-//! (list some cool stuff here)
+//! - Basic matrix operations for both [statically](crate::data::MatrixMN) and
+//!   [dynamically](crate::data::MatrixDyn) sized matrices.
+//! - A bignum type for [naturals](crate::data::Nat), 
+//!   [integers](crate::data::Int), and [rationals](crate::data::Rat) (all works
+//!   in progress).
 //!
 //! ## Design
 //!
@@ -31,9 +35,6 @@
 pub mod algs;
 pub mod data;
 pub mod traits;
-
-/// Generic error message.
-const SIZE_MISMATCH: &str = "matrix size mismatch";
 
 /// A workaround for transmuting a generic type into another.
 ///

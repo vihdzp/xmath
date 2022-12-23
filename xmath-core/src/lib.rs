@@ -6,4 +6,4 @@
 pub struct U1;
 
 /// The type-level integer `D + 1`.
-pub struct Succ<D>(D);
+pub struct Succ<D>(pub D);

@@ -8,7 +8,7 @@
 //! that this library's traits have, the main difference is that Rust's traits
 //! pass by value, while ours pass by reference. This means ours are much more
 //! suited to working with dynamically sized types such as
-//! [`Nat`](crate::data::nat::Nat).
+//! [`Nat`](crate::data::Nat).
 //!
 //! We also provide extra functions such as [`double`](Add::double),
 //! which for certain types can be optimized more than the default
@@ -42,6 +42,9 @@ pub type Wu64 = Wrapping<u64>;
 /// The ring of integers modulo 2¹²⁸.
 pub type Wu128 = Wrapping<u128>;
 
+/// The ring of integers modulo the pointer size.
+pub type Wusize = Wrapping<usize>;
+
 /// The ring of integers modulo 2⁸.
 pub type Wi8 = Wrapping<i8>;
 
@@ -56,6 +59,9 @@ pub type Wi64 = Wrapping<i64>;
 
 /// The ring of integers modulo 2¹²⁸.
 pub type Wi128 = Wrapping<i128>;
+
+/// The ring of integers modulo the pointer size.
+pub type Wisize = Wrapping<isize>;
 
 /// A trait for a `0` value.
 ///
@@ -89,7 +95,9 @@ macro_rules! impl_zero {
     };
 }
 
-impl_zero!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
+impl_zero!(
+    u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, f32, f64
+);
 
 /// A trait for a `1` value.
 ///
@@ -123,7 +131,9 @@ macro_rules! impl_one {
     };
 }
 
-impl_one!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
+impl_one!(
+    u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, f32, f64
+);
 
 /// Types where `0 != 1`.
 pub trait ZeroNeOne: Zero + One + Eq {}
@@ -136,7 +146,9 @@ macro_rules! impl_zero_ne_one {
     };
 }
 
-impl_zero_ne_one!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128);
+impl_zero_ne_one!(
+    u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize
+);
 
 /// Negation on a type.
 ///
@@ -169,8 +181,8 @@ macro_rules! impl_neg {
 }
 
 impl_neg!(
-    i8, i16, i32, i64, i128, f32, f64, Wu8, Wu16, Wu32, Wu64, Wu128, Wi8, Wi16,
-    Wi32, Wi64, Wi128
+    i8, i16, i32, i64, i128, isize, f32, f64, Wu8, Wu16, Wu32, Wu64, Wu128,
+    Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize
 );
 
 /// Derives [`std::ops::Neg`] from [`Neg`].
@@ -265,7 +277,10 @@ macro_rules! impl_add {
     };
 }
 
-impl_add!(Wu8, Wu16, Wu32, Wu64, Wu128, Wi8, Wi16, Wi32, Wi64, Wi128, f32, f64);
+impl_add!(
+    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize,
+    f32, f64
+);
 
 /// Derives [`std::ops::Add`] and [`std::ops::AddAssign`] from [`Add`].
 #[macro_export]
@@ -361,7 +376,10 @@ macro_rules! impl_mul {
     };
 }
 
-impl_mul!(Wu8, Wu16, Wu32, Wu64, Wu128, Wi8, Wi16, Wi32, Wi64, Wi128, f32, f64);
+impl_mul!(
+    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize,
+    f32, f64
+);
 
 /// Derives [`std::ops::Mul`] and [`std::ops::MulAssign`] from [`Mul`].
 #[macro_export]
@@ -425,7 +443,9 @@ macro_rules! impl_comm_add {
     };
 }
 
-impl_comm_add!(Wu8, Wu16, Wu32, Wu64, Wu128, Wi8, Wi16, Wi32, Wi64, Wi128);
+impl_comm_add!(
+    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize
+);
 
 /// Commutative multiplication.
 ///
@@ -439,7 +459,9 @@ macro_rules! impl_comm_mul {
     };
 }
 
-impl_comm_mul!(Wu8, Wu16, Wu32, Wu64, Wu128, Wi8, Wi16, Wi32, Wi64, Wi128);
+impl_comm_mul!(
+    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize
+);
 
 /// Subtraction on a type.
 ///
@@ -471,7 +493,10 @@ macro_rules! impl_sub {
     };
 }
 
-impl_sub!(Wu8, Wu16, Wu32, Wu64, Wu128, Wi8, Wi16, Wi32, Wi64, Wi128, f32, f64);
+impl_sub!(
+    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize,
+    f32, f64
+);
 
 /// Derives [`std::ops::Sub`] and [`std::ops::SubAssign`] from [`Sub`].
 #[macro_export]
@@ -770,9 +795,9 @@ where
 
 /// A trait for (commutative and unitary) rings.
 ///
-/// These are types implementing [`AddGroup`], [`CommAdd`], [`CommMul`], and
-/// [`One`] such that `x * (y + z) = x * y + x * z` for any `x`, `y`, `z`.
-pub trait Ring: AddGroup + CommAdd + CommMul + One {}
+/// These are types implementing [`AddGroup`], [`MulMonoid`], [`CommAdd`], and
+/// [`CommMul`], such that `x * (y + z) = x * y + x * z` for any `x`, `y`, `z`.
+pub trait Ring: AddGroup + MulMonoid + CommAdd + CommMul {}
 
 /// Implements [`Ring`] for the primitive types.
 macro_rules! impl_ring {

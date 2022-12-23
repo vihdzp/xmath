@@ -1,7 +1,11 @@
 //! Implements the type [`Array`] of statically-sized arrays with element-wise
 //! operations.
 
-use crate::traits::{basic::*, dim::*, matrix::*};
+use crate::{
+    algs::matrix::{madd_gen, mmul_gen},
+    data::aliases::Transpose,
+    traits::{basic::*, dim::*, matrix::*},
+};
 
 /// A statically-sized array of elements of a single type.
 ///
@@ -234,15 +238,15 @@ impl<T: Ring, const N: usize> Ring for Array<T, N> {}
 /// Arrays are a one-dimensional list.
 impl<T, const N: usize> List<U1> for Array<T, N> {
     type Item = T;
-    const SIZE: CSingle<Dim> = CSingle(Dim::Fin(N));
+    const SIZE: C1<Dim> = C1(Dim::Fin(N));
 
-    fn coeff_ref_gen(&self, index: &CSingle<usize>) -> Option<&Self::Item> {
+    fn coeff_ref_gen(&self, index: &C1<usize>) -> Option<&Self::Item> {
         self.get(index.0)
     }
 
     unsafe fn coeff_set_unchecked_gen(
         &mut self,
-        index: &CSingle<usize>,
+        index: &C1<usize>,
         value: Self::Item,
     ) {
         *self.as_mut().get_unchecked_mut(index.0) = value;
@@ -388,4 +392,143 @@ where
 
         res
     }
+}
+
+/// An alias for an M × N statically sized matrix.
+pub type MatrixMN<T, const M: usize, const N: usize> = Array<Array<T, N>, M>;
+
+/// Checks that we can transmute between two [`MatrixMN`].
+macro_rules! transmute_check {
+    ($m: expr, $n: expr, $k: expr, $l: expr) => {
+        assert_eq!(
+            $m * $n,
+            $k * $l,
+            "incompatible matrix sizes for transmutation (M: {}, N: {}, K: {}, L: {})",
+            $m,
+            $n,
+            $k,
+            $l
+        );
+    };
+}
+
+impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
+    /// Adds two statically sized matrices.
+    pub fn madd(&self, m: &Self) -> Self {
+        madd_gen(self, m)
+    }
+
+    /// Multiplies two statically sized matrices.
+    pub fn mmul<const K: usize>(
+        &self,
+        m: &MatrixMN<T, N, K>,
+    ) -> MatrixMN<T, M, K> {
+        mmul_gen(self, m)
+    }
+
+    pub fn from_fn_matrix<F: Copy + FnMut(usize, usize) -> T>(f: F) -> Self {
+        Matrix::from_fn(M, N, f)
+    }
+
+    /// Transmutes a matrix as another matrix of the same size. The size check
+    /// is performed at compile time.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if both matrices don't have the same size.
+    pub fn transmute<const K: usize, const L: usize>(
+        self,
+    ) -> MatrixMN<T, K, L> {
+        transmute_check!(M, N, K, L);
+
+        // Safety: matrices of the same size have the same layout.
+        unsafe { crate::transmute_gen(self) }
+    }
+
+    /// Transmutes a reference to a matrix as a refrence to another matrix of
+    /// the same size. The size check is performed at compile time.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if both matrices don't have the same size.
+    pub fn transmute_ref<const K: usize, const L: usize>(
+        &self,
+    ) -> &MatrixMN<T, K, L> {
+        transmute_check!(M, N, K, L);
+
+        // Safety: we've performed the size check.
+        unsafe { &*(self as *const Self).cast() }
+    }
+
+    /// Transmutes a mutable reference to a matrix as a mutable refrence to
+    /// another matrix of the same size. The size check is performed at
+    /// compile time.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if both matrices don't have the same size.
+    pub fn transmute_mut<const K: usize, const L: usize>(
+        &mut self,
+    ) -> &mut MatrixMN<T, K, L> {
+        transmute_check!(M, N, K, L);
+
+        // Safety: we've performed the size check.
+        unsafe { &mut *(self as *mut Self).cast() }
+    }
+}
+
+/// Interprets a vector as a row vector.
+pub type RowVec<T> = Array<T, 1>;
+
+impl<T> RowVec<T> {
+    /// Creates a new row vector.
+    pub fn new_row(x: T) -> Self {
+        Self([x])
+    }
+
+    /// Gets the inner vector.
+    pub fn inner(self) -> T {
+        crate::from_array(self.0)
+    }
+}
+
+/// Interprets a vector as a column vector.
+pub type ColVec<T> = Transpose<RowVec<T>>;
+
+impl<T> ColVec<T> {
+    /// Creates a new column vector.
+    pub fn new_col(x: T) -> Self {
+        Self(RowVec::new_row(x))
+    }
+
+    /// Gets the inner vector.
+    pub fn inner(self) -> T {
+        self.0.inner()
+    }
+}
+
+/// A macro to simplify writing down a [`MatrixMN`].
+///
+/// See also [`matrix_dyn`](crate::matrix_dyn).
+///
+/// ## Example
+///
+/// ```
+/// # use std::num::Wrapping;
+/// # use xmath::data::MatrixMN;
+/// # use xmath::matrix_mn;
+/// # use xmath::traits::basic::Wu8;///
+/// let m: MatrixMN<Wu8, 2, 2> = matrix_mn!(
+///     Wrapping(1), Wrapping(2);
+///     Wrapping(3), Wrapping(4)
+/// );
+///
+/// // Array([Array([1, 2]), Array([3, 4])])
+/// println!("{:?}", m);
+/// ```
+#[macro_export]
+macro_rules! matrix_mn {
+    ($($($x: expr),*);*) => {
+        $crate::data::Array([$($crate::data::Array([$($x),*])),*])
+    };
 }

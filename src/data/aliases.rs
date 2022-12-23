@@ -1,9 +1,9 @@
 //! Declares various type aliases, which change the structure a type is endowed
 //! with.
 
-use crate::ctuple;
-use crate::traits::matrix::{Dim, Direction, Matrix, Module};
-use crate::traits::{basic::*, dim::U2, matrix::List};
+use crate::traits::basic::*;
+use crate::traits::dim::{C2, U2};
+use crate::traits::matrix::*;
 
 /// A type alias that endows a type with additive operations instead of
 /// multiplicative ones.
@@ -20,6 +20,7 @@ impl<T> Additive<T> {
     }
 }
 
+/// Multiplicative one becomes additive zero.
 impl<T: One> Zero for Additive<T> {
     fn zero() -> Self {
         Self::new(T::one())
@@ -30,6 +31,7 @@ impl<T: One> Zero for Additive<T> {
     }
 }
 
+/// Multiplicative inverse becomes negation.
 impl<T: Inv> Neg for Additive<T> {
     fn neg(&self) -> Self {
         Self::new(self.0.inv())
@@ -40,6 +42,7 @@ impl<T: Inv> Neg for Additive<T> {
     }
 }
 
+/// Multiplication becomes addition.
 impl<T: Mul> Add for Additive<T> {
     fn add(&self, x: &Self) -> Self {
         Self::new(self.0.mul(&x.0))
@@ -56,6 +59,7 @@ impl<T: Mul> Add for Additive<T> {
 
 impl<T: MulMonoid> AddMonoid for Additive<T> {}
 
+/// Division becomes subtraction.
 impl<T: Div> Sub for Additive<T> {
     fn sub(&self, x: &Self) -> Self {
         Self::new(self.0.div(&x.0))
@@ -83,6 +87,7 @@ impl<T> Multiplicative<T> {
     }
 }
 
+/// Multiplicative zero becomes one.
 impl<T: Zero> One for Multiplicative<T> {
     fn one() -> Self {
         Self::new(T::zero())
@@ -93,6 +98,7 @@ impl<T: Zero> One for Multiplicative<T> {
     }
 }
 
+/// Negation becomes multiplicative inverse.
 impl<T: Neg> Inv for Multiplicative<T> {
     fn inv(&self) -> Self {
         Self::new(self.0.neg())
@@ -103,6 +109,7 @@ impl<T: Neg> Inv for Multiplicative<T> {
     }
 }
 
+/// Addition becomes multiplication.
 impl<T: Add> Mul for Multiplicative<T> {
     fn mul(&self, x: &Self) -> Self {
         Self::new(self.0.add(&x.0))
@@ -119,6 +126,7 @@ impl<T: Add> Mul for Multiplicative<T> {
 
 impl<T: AddMonoid> MulMonoid for Multiplicative<T> {}
 
+/// Subtraction becomes division.
 impl<T: Sub> Div for Multiplicative<T> {
     fn div(&self, x: &Self) -> Self {
         Self::new(self.0.sub(&x.0))
@@ -223,6 +231,8 @@ impl<T: IntegralDomain> Mul for NonZero<T> {
 
 impl<T: IntegralDomain + MulMonoid + ZeroNeOne> MulMonoid for NonZero<T> {}
 
+/// A wrapper for a matrix that is to be interpreted with the rows and columns
+/// swapped.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Transpose<T>(pub T);
@@ -257,19 +267,18 @@ impl<T> Transpose<T> {
 
 impl<M: List<U2>> List<U2> for Transpose<M> {
     type Item = M::Item;
+    const SIZE: C2<Dim> = M::SIZE.swap();
 
-    const SIZE: ctuple!(Dim; 2) = M::SIZE.swap();
-
-    fn coeff_ref_gen(&self, i: &ctuple!(usize; 2)) -> Option<&Self::Item> {
-        self.0.coeff_ref_gen(&i.swap())
+    fn coeff_ref_gen(&self, index: &C2<usize>) -> Option<&Self::Item> {
+        self.0.coeff_ref_gen(&index.swap())
     }
 
     unsafe fn coeff_set_unchecked_gen(
         &mut self,
-        index: &ctuple!(usize; 2),
+        index: &C2<usize>,
         value: Self::Item,
     ) {
-        self.0.coeff_set_unchecked_gen(&index.swap(),value)
+        self.0.coeff_set_unchecked_gen(&index.swap(), value)
     }
 
     fn map<F: Fn(&Self::Item) -> Self::Item>(&self, f: F) -> Self {
@@ -281,6 +290,7 @@ impl<M: List<U2>> List<U2> for Transpose<M> {
     }
 }
 
+/// The zero value is just the transpose of 0.
 impl<T: Zero> Zero for Transpose<T> {
     fn zero() -> Self {
         Self(T::zero())
@@ -291,6 +301,7 @@ impl<T: Zero> Zero for Transpose<T> {
     }
 }
 
+/// The one value is just the transpose of 1.
 impl<T: One> One for Transpose<T> {
     fn one() -> Self {
         Self(T::one())
@@ -301,12 +312,14 @@ impl<T: One> One for Transpose<T> {
     }
 }
 
+/// Negates the inner value.
 impl<T: Neg> Neg for Transpose<T> {
     fn neg(&self) -> Self {
         Self(self.0.neg())
     }
 }
 
+/// Adds the inner values.
 impl<T: Add> Add for Transpose<T> {
     fn add(&self, x: &Self) -> Self {
         Self(self.0.add(&x.0))
@@ -325,6 +338,7 @@ impl<T: Add> Add for Transpose<T> {
     }
 }
 
+/// Subtracts the inner values.
 impl<T: Sub> Sub for Transpose<T> {
     fn sub(&self, x: &Self) -> Self {
         Self(self.0.sub(&x.0))

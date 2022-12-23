@@ -1,13 +1,11 @@
 //! Implements the type of univariate polynomials [`Poly`] and the type of
 //! bivariate polynomials [`Poly2`].
 
-use crate::traits::basic::*;
-use crate::traits::dim::*;
+use crate::algs::matrix::{madd_gen, mmul_gen};
+use crate::traits::{basic::*, dim::*, matrix::*};
 use crate::{ctuple, tuple};
 use std::cmp::Ordering::*;
 use std::fmt::Write;
-
-use crate::traits::matrix::*;
 
 /// A polynomial whose entries belong to a type.
 ///
@@ -101,7 +99,7 @@ impl<T: Zero> Poly<T> {
 
     /// Sets a given index with a given value.
     pub fn set(&mut self, index: usize, value: T) {
-        match (self.len() + 1).cmp(&index) {
+        match self.len().cmp(&(index + 1)) {
             // Safety: the leading coefficient isn't modified.
             Greater => unsafe { self.as_slice_mut()[index] = value },
 
@@ -146,6 +144,66 @@ impl<T: Zero> Poly<T> {
             let x = self.as_vec_mut().pop();
             trim(self.as_vec_mut());
             x.unwrap_or_else(T::zero)
+        }
+    }
+
+    pub fn pairwise<U: Zero, V: Zero, F: FnMut(&T, &U) -> V>(
+        &self,
+        rhs: &Poly<U>,
+        mut f: F,
+    ) -> Poly<V> {
+        let mut res = Vec::new();
+
+        if self.len() < rhs.len() {
+            for i in 0..self.len() {
+                res.push(f(&self.as_ref()[i], &rhs.as_ref()[i]));
+            }
+
+            let z = T::zero();
+
+            for i in self.len()..rhs.len() {
+                res.push(f(&z, &rhs.as_ref()[i]));
+            }
+        } else {
+            for i in 0..rhs.len() {
+                res.push(f(&self.as_ref()[i], &rhs.as_ref()[i]));
+            }
+
+            let z = U::zero();
+
+            for i in rhs.len()..self.len() {
+                res.push(f(&self.as_ref()[i], &z));
+            }
+        }
+
+        res.into()
+    }
+
+    pub fn pairwise_mut<U: Zero, F: FnMut(&mut T, &U)>(
+        &mut self,
+        rhs: &Poly<U>,
+        mut f: F,
+    ) {
+        unsafe {
+            if self.len() < rhs.len() {
+                self.as_vec_mut().resize_with(rhs.len(), T::zero);
+
+                for i in 0..rhs.len() {
+                    f(&mut self.as_slice_mut()[i], &rhs.as_ref()[i]);
+                }
+            } else {
+                for i in 0..rhs.len() {
+                    f(&mut self.as_slice_mut()[i], &rhs.as_ref()[i]);
+                }
+
+                let z = U::zero();
+
+                for i in rhs.len()..self.len() {
+                    f(&mut self.as_slice_mut()[i], &z);
+                }
+            }
+
+            trim(self.as_vec_mut());
         }
     }
 
@@ -485,13 +543,13 @@ impl<T: Zero> List<U1> for Poly<T> {
     const SIZE: ctuple!(Dim; 1) = tuple!(Dim::Inf);
     type Item = T;
 
-    fn coeff_ref_gen(&self, i: &CSingle<usize>) -> Option<&Self::Item> {
+    fn coeff_ref_gen(&self, i: &C1<usize>) -> Option<&Self::Item> {
         self.as_slice().get(i.0)
     }
 
     unsafe fn coeff_set_unchecked_gen(
         &mut self,
-        index: &CSingle<usize>,
+        index: &C1<usize>,
         value: Self::Item,
     ) {
         self.set(index.0, value);
@@ -579,7 +637,7 @@ impl<C: TypeNum, V: List<C> + Zero> List<Succ<C>> for Poly<V> {
         index: &CPair<usize, C::Array<usize>>,
         value: Self::Item,
     ) {
-        match (self.len() + 1).cmp(&index.0) {
+        match self.len().cmp(&(index.0 + 1)) {
             // Safety: the leading coefficient isn't modified.
             Greater => self.as_slice_mut()[index.0]
                 .coeff_set_unchecked_gen(&index.1, value),
@@ -683,11 +741,52 @@ where
     }
 }
 
+/// An alias for a dynamically sized matrix.
+pub type MatrixDyn<T> = Poly<Poly<T>>;
+
+impl<T: Ring> MatrixDyn<T> {
+    /// Adds two dynamically sized matrices.
+    pub fn madd(&self, m: &Self) -> Self {
+        madd_gen(self, m)
+    }
+
+    /// Multiplies two dynamically sized matrices.
+    pub fn mmul<const K: usize>(&self, m: &Self) -> Self {
+        mmul_gen(self, m)
+    }
+}
+
+/// A macro to simplify writing down a [`MatrixDyn`].
+///
+/// See also [`matrix_mn`](crate::matrix_mn).
+///
+/// ## Example
+///
+/// ```
+/// # use std::num::Wrapping;
+/// # use xmath::data::MatrixDyn;
+/// # use xmath::matrix_dyn;
+/// # use xmath::traits::basic::Wu8;///
+/// let m: MatrixDyn<Wu8> = matrix_dyn!(
+///     Wrapping(1), Wrapping(2);
+///     Wrapping(3), Wrapping(4)
+/// );
+///
+/// // Poly([Poly([1, 2]), Poly([3, 4])])
+/// println!("{:?}", m);
+/// ```
+#[macro_export]
+macro_rules! matrix_dyn {
+    ($($($x: expr),*);*) => {
+        $crate::data::Poly::new(vec![$($crate::data::Poly::new(vec![$($x),*])),*])
+    };
+}
+
 // TODO: Lagrange interpolation
 
 /// A polynomial in two variables.
 ///
-/// You can cast a polynomial `p : Poly<T>` to a two-variable polynomial using
+/// You can cast a polynomial `p: Poly<T>` to a two-variable polynomial using
 /// either of [`Poly2::of_x`] or [`Poly2::of_y`].
 ///
 /// ## Internal representation

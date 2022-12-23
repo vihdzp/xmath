@@ -13,12 +13,8 @@
 //! Correctly managing these two kinds of lists under the same interface is a
 //! subtle matter. See [`List`] for more details.
 
-use crate::tuple;
-
-use super::{
-    basic::*,
-    dim::{CSingle, TypeNum, U1, U2},
-};
+use super::{basic::*, dim::*};
+use std::fmt::Write;
 
 /// An enum for one of two values, a "finite" `usize` value, or an infinite
 /// value. This is used to measure the size of a [`List`].
@@ -32,12 +28,35 @@ pub enum Dim {
     Inf,
 }
 
+impl std::fmt::Display for Dim {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Dim::Fin(x) => write!(f, "{}", x),
+            Dim::Inf => f.write_char('∞'),
+        }
+    }
+}
+
 impl Dim {
     /// Returns whether `x < self`.
-    pub fn cmp_usize(self, x: usize) -> bool {
+    pub const fn cmp_usize(self, x: usize) -> bool {
         match self {
             Dim::Fin(y) => x < y,
             Dim::Inf => true,
+        }
+    }
+
+    /// The minimum of a `Dim` and a `usize` value.
+    pub const fn min(self, x: usize) -> usize {
+        match self {
+            Dim::Fin(y) => {
+                if x < y {
+                    x
+                } else {
+                    y
+                }
+            }
+            Dim::Inf => x,
         }
     }
 }
@@ -48,7 +67,7 @@ impl Dim {
 /// number of dimensions of the list. For instance, a [`LinearModule`]
 /// implements `List<U1>` while a [`Matrix`] implements `List<U2>`. Note that a
 /// type can implement `List<C>` for more than one integer. For instance,
-/// [`MatrixMN`](crate::data::matrix::MatrixMN) implements both `List<U1>` and
+/// [`MatrixMN`](crate::data::MatrixMN) implements both `List<U1>` and
 /// `List<U2>`, meaning that it can either be indexed by a single coordinate
 /// (row-wise) or by two (entry-wise).
 ///
@@ -92,7 +111,7 @@ pub trait List<C: TypeNum> {
     /// 0.
     ///
     /// This is the more general version of this function, contrast with
-    /// [`LinearModule::coeff_or_zero`].
+    /// [`LinearModule::coeff_or_zero`] and [`Matrix::coeff_or_zero`].
     fn coeff_or_zero_gen(&self, index: &C::Array<usize>) -> Self::Item
     where
         Self::Item: Clone + Zero,
@@ -148,11 +167,30 @@ pub trait List<C: TypeNum> {
 pub fn is_valid_index_gen<C: TypeNum, L: List<C> + ?Sized>(
     index: &C::Array<usize>,
 ) -> bool {
-    super::dim::ctuple::pairwise::<C, _, _, _>(
-        &L::SIZE,
-        index,
-        |x: &Dim, y: &usize| x.cmp_usize(*y),
-    )
+    super::dim::pairwise::<C, _, _, _>(&L::SIZE, index, |x: &Dim, y: &usize| {
+        x.cmp_usize(*y)
+    })
+}
+
+/// A default implementation for `from_fn` on lists.  
+pub fn from_fn_gen<
+    C: TypeNum,
+    L: List<C> + Zero,
+    F: FnMut(&C::Array<usize>) -> L::Item,
+>(
+    limit: C::Array<usize>,
+    mut f: F,
+) -> L
+where
+    C::Array<usize>: Clone + Zero,
+{
+    let mut res = L::zero();
+
+    for index in TupleIter::new(min::<C>(&L::SIZE, &limit)) {
+        res.coeff_set_gen(&index, f(&index));
+    }
+
+    res
 }
 
 /// A [`List`] that is also an [`AddGroup`], such that addition in this
@@ -194,7 +232,7 @@ where
     /// This is the more specific version of this function, contrast with
     /// [`List::coeff_ref_gen`].
     fn coeff_ref(&self, index: usize) -> Option<&Self::Item> {
-        self.coeff_ref_gen(&CSingle(index))
+        self.coeff_ref_gen(&C1(index))
     }
 
     /// Returns the value of the entry with a certain coefficient, defaulting to
@@ -203,7 +241,7 @@ where
     /// This is the more specific version of this function, contrast with
     /// [`List::coeff_or_zero_gen`].
     fn coeff_or_zero(&self, index: usize) -> Self::Item {
-        self.coeff_or_zero_gen(&CSingle(index))
+        self.coeff_or_zero_gen(&C1(index))
     }
 
     /// Sets the entry with a certain index with a certain value.
@@ -215,7 +253,7 @@ where
     ///
     /// The index must be valid.
     unsafe fn coeff_set_unchecked(&mut self, index: usize, value: Self::Item) {
-        self.coeff_set_unchecked_gen(&CSingle(index), value);
+        self.coeff_set_unchecked_gen(&C1(index), value);
     }
 
     /// Sets the entry with a certain index with a certain value.
@@ -228,7 +266,7 @@ where
     /// This function must panic if and only if it is given an invalid
     /// coefficient.
     fn coeff_set(&mut self, index: usize, value: Self::Item) {
-        self.coeff_set_gen(&CSingle(index), value);
+        self.coeff_set_gen(&C1(index), value);
     }
 
     /// Returns some number `i`, such that coefficients from `i` onwards are
@@ -250,6 +288,10 @@ where
 
         res
     }
+
+    fn from_fn_lin<F: FnMut(usize) -> Self::Item>(n: usize, mut f: F) -> Self {
+        from_fn_gen(C1(n), |x: &C1<usize>| f(x.0))
+    }
 }
 
 /// Returns whether an index is valid for the linear module.
@@ -260,7 +302,7 @@ pub fn is_valid_index_lin<V: LinearModule + ?Sized>(index: usize) -> bool
 where
     V::Item: Ring,
 {
-    is_valid_index_gen::<U1, V>(&CSingle(index))
+    is_valid_index_gen::<U1, V>(&C1(index))
 }
 
 /// The preferred order to write the entries of a matrix in. Sometimes allows
@@ -317,7 +359,16 @@ where
     /// This is the more specific version of this function, contrast with
     /// [`List::coeff_ref_gen`].
     fn coeff_ref(&self, row: usize, col: usize) -> Option<&Self::Item> {
-        self.coeff_ref_gen(&tuple!(row, col))
+        self.coeff_ref_gen(&C2::new(row, col))
+    }
+
+    /// Returns the value of the entry with a certain coefficient, defaulting to
+    /// 0.
+    ///
+    /// This is the more specific version of this function, contrast with
+    /// [`List::coeff_or_zero_gen`].
+    fn coeff_or_zero(&self, row: usize, col: usize) -> Self::Item {
+        self.coeff_or_zero_gen(&C2::new(row, col))
     }
 
     /// Sets the entry with a certain index with a certain value.
@@ -334,7 +385,7 @@ where
         col: usize,
         value: Self::Item,
     ) {
-        self.coeff_set_unchecked_gen(&tuple!(row, col), value);
+        self.coeff_set_unchecked_gen(&C2::new(row, col), value);
     }
 
     /// Sets the entry with a certain index with a certain value.
@@ -347,7 +398,7 @@ where
     /// This function must panic if and only if it is given an invalid
     /// coefficient.
     fn coeff_set(&mut self, row: usize, col: usize, value: Self::Item) {
-        self.coeff_set_gen(&tuple!(row, col), value);
+        self.coeff_set_gen(&C2::new(row, col), value);
     }
 
     /// The support of a certain column, in the sense of
@@ -378,7 +429,17 @@ where
         let mut res = Self::zero();
 
         for (row, iter) in iter.into_iter().enumerate() {
+            // Can't write any more rows.
+            if !Self::SIZE.height().cmp_usize(row) {
+                break;
+            }
+
             for (col, value) in iter.into_iter().enumerate() {
+                // Can't keep writing this row.
+                if !Self::SIZE.width().cmp_usize(col) {
+                    break;
+                }
+
                 res.coeff_set(row, col, value)
             }
         }
@@ -399,29 +460,53 @@ where
     ) -> Self {
         let mut res = Self::zero();
 
-        for (c, iter) in iter.into_iter().enumerate() {
-            for (r, x) in iter.into_iter().enumerate() {
-                res.coeff_set(r, c, x)
+        for (col, iter) in iter.into_iter().enumerate() {
+            // Can't write any more columns.
+            if !Self::SIZE.width().cmp_usize(col) {
+                break;
+            }
+
+            for (row, x) in iter.into_iter().enumerate() {
+                // Can't keep writing this column.
+                if !Self::SIZE.height().cmp_usize(row) {
+                    break;
+                }
+
+                res.coeff_set(row, col, x)
             }
         }
 
         res
     }
 
-    /// Creates a new matrix, filling up to the first `h` rows and `w` columns
-    /// with the outputs of `f`, in the preferred direction of the matrix type.
+    /// Creates a new matrix, filling up a rectangle with the outputs of `f`, in
+    /// the preferred direction of the matrix type.
     ///
     /// Any values not filled default to `0`.
     fn from_fn<F: Copy + FnMut(usize, usize) -> Self::Item>(
-        h: usize,
-        w: usize,
+        height: usize,
+        width: usize,
         mut f: F,
     ) -> Self {
+        let mut res = Self::zero();
+
         if Self::DIR.contains(Direction::Row) {
-            Self::collect_row((0..h).map(|i| (0..w).map(move |j| f(i, j))))
+            for CPair(col, C1(row)) in TupleIter::new(min::<U2>(
+                &Self::SIZE.swap(),
+                &C2::new(width, height),
+            )) {
+                println!("{},{}", row, col);
+                res.coeff_set(row, col, f(row, col));
+            }
         } else {
-            Self::collect_col((0..w).map(|j| (0..h).map(move |i| f(i, j))))
+            for CPair(row, C1(col)) in
+                TupleIter::new(min::<U2>(&Self::SIZE, &C2::new(height, width)))
+            {
+                res.coeff_set(row, col, f(row, col));
+            }
         }
+
+        res
     }
 }
 
@@ -433,21 +518,57 @@ pub fn is_valid_index<M: Matrix>(i: usize, j: usize) -> bool
 where
     M::Item: Ring,
 {
-    is_valid_index_gen::<U2, M>(&tuple!(i, j))
+    is_valid_index_gen::<U2, M>(&C2::new(i, j))
 }
 
-/// The height of the size of the matrix.
-pub const fn size_height<M: Matrix>() -> Dim
-where
-    M::Item: Ring,
-{
-    M::SIZE.0
-}
+#[cfg(test)]
+mod tests {
+    use super::Matrix;
+    use crate::{
+        data::{MatrixDyn, MatrixMN},
+        matrix_dyn, matrix_mn,
+        traits::basic::Wu8,
+    };
+    use std::num::Wrapping;
 
-/// The width of the size of the matrix.
-pub const fn size_width<M: Matrix>() -> Dim
-where
-    M::Item: Ring,
-{
-    M::SIZE.1 .0
+    /// Tests `from_fn` when called with a smaller rectangle.
+    #[test]
+    fn from_fn_1() {
+        let m1: MatrixMN<Wu8, 2, 2> = Matrix::from_fn(1, 1, |_, _| Wrapping(1));
+
+        let m2: MatrixMN<Wu8, 2, 2> = matrix_mn!(
+            Wrapping(1), Wrapping(0);
+            Wrapping(0), Wrapping(0)
+        );
+
+        assert_eq!(m1, m2);
+    }
+
+    /// Tests `from_fn` when called with a larger rectangle.
+    #[test]
+    fn from_fn_2() {
+        let m1: MatrixMN<Wu8, 2, 2> =
+            Matrix::from_fn(3, 3, |i, j| Wrapping((2 * i + j + 1) as u8));
+
+        let m2: MatrixMN<Wu8, 2, 2> = matrix_mn!(
+            Wrapping(1), Wrapping(2);
+            Wrapping(3), Wrapping(4)
+        );
+
+        assert_eq!(m1, m2);
+    }
+
+    /// Tests `from_fn` when called on a dynamically-sized matrix.
+    #[test]
+    fn from_fn_3() {
+        let m1: MatrixDyn<Wu8> =
+            Matrix::from_fn(2, 2, |i, j| Wrapping((2 * i + j + 1) as u8));
+
+        let m2: MatrixDyn<Wu8> = matrix_dyn!(
+            Wrapping(1), Wrapping(2);
+            Wrapping(3), Wrapping(4)
+        );
+
+        assert_eq!(m1, m2);
+    }
 }
