@@ -1,5 +1,6 @@
 use super::Nat;
 use crate::{data::Sign, traits::*};
+use std::cmp::Ordering::*;
 
 /// A variable-sized (signed) integer.
 ///
@@ -100,6 +101,22 @@ impl From<Nat> for Int {
     }
 }
 
+impl From<u32> for Int {
+    fn from(abs: u32) -> Self {
+        Self::new_pos(abs.into())
+    }
+}
+
+impl From<i32> for Int {
+    fn from(abs: i32) -> Self {
+        if abs < 0 {
+            Self::new_neg(((-abs) as u32).into())
+        } else {
+            (abs as u32).into()
+        }
+    }
+}
+
 impl One for Int {
     fn one() -> Self {
         Nat::one().into()
@@ -112,67 +129,151 @@ impl One for Int {
 
 impl ZeroNeOne for Int {}
 
+/// A convenience macro for defining an integer from its underlying array, in a
+/// manner similar to [`vec`]. 
+/// 
+/// Prefixing the list by `M` yields the negative.
+///
+/// ## Examples
+///
+/// ```
+/// # use xmath::{int, nat};
+/// # use xmath::data::Int;
+/// # use xmath::traits::Zero;
+/// assert_eq!(int!(0), Int::zero());
+/// assert_eq!(int!(M 0), Int::zero());
+/// assert_eq!(int!(5), Int::from(5u32));
+/// assert_eq!(int!(0, 1), Int::from(nat![0, 1]));
+/// assert_eq!(int!(M 2, 5), Int::new_neg(nat![2, 5]));
+/// ```
+#[macro_export]
+macro_rules! int {
+    ($($xs: expr),*) => {
+        xmath::data::Int::from(xmath::nat!($($xs),*))
+    };
+    (M $($xs: expr),*) => {
+        xmath::data::Int::new_neg(xmath::nat!($($xs),*))
+    }
+}
+
 impl Neg for Int {
     fn neg(&self) -> Self {
         // Safety: this operation preserves the sign invariant.
         unsafe { Self::new_unchecked(self.abs().clone(), self.sgn().neg()) }
     }
+
+    fn neg_mut(&mut self) {
+        // Safety: this operation preserves the sign invariant.
+        unsafe {
+            self.sgn_mut().neg_mut();
+        }
+    }
 }
-/*
+
+/// Adds two integers. The absolute values and signs are unbundled, which means
+/// this works for both addition and subtraction.
+///
+/// ## Safety
+///
+/// The natural numbers and their corresponding signs are subject to the same
+/// invariant as [`Int`].
 unsafe fn add_sign(x: &Nat, xs: Sign, y: &Nat, ys: Sign) -> Int {
     match xs {
-        Sign::ZERO => Int::new_unchecked(x.clone(), xs),
-        Sign::POS => todo!(),
-        Sign::NEG => todo!(),
+        Sign::ZERO => Int::new_unchecked(y.clone(), ys),
+        Sign::POS => match ys {
+            Sign::ZERO => Int::new_unchecked(x.clone(), xs),
+            Sign::POS => Int::new_unchecked(x.add(y), Sign::POS),
+            Sign::NEG => match x.cmp(y) {
+                Greater => Int::new_unchecked(x.monus(y), Sign::POS),
+                Equal => Int::zero(),
+                Less => Int::new_unchecked(y.monus(x), Sign::NEG),
+            },
+        },
+        Sign::NEG => match ys {
+            Sign::ZERO => Int::new_unchecked(x.clone(), xs),
+            Sign::NEG => Int::new_unchecked(x.add(y), Sign::NEG),
+            Sign::POS => match x.cmp(y) {
+                Greater => Int::new_unchecked(x.monus(y), Sign::NEG),
+                Equal => Int::zero(),
+                Less => Int::new_unchecked(y.monus(x), Sign::POS),
+            },
+        },
+    }
+}
+
+/// Adds two integers, assigns to the first. The absolute values and signs are
+/// unbundled, which means this works for both addition and subtraction.
+///
+/// ## Safety
+///
+/// The natural numbers and their corresponding signs are subject to the same
+/// invariant as [`Int`].
+unsafe fn add_sign_mut(x: &mut Nat, xs: &mut Sign, y: &Nat, ys: Sign) {
+    match xs {
+        Sign::ZERO => (*x, *xs) = (y.clone(), ys),
+        Sign::POS => match ys {
+            Sign::ZERO => {}
+            Sign::POS => x.add_mut(y),
+            Sign::NEG => match (*x).cmp(y) {
+                Greater => x.monus_mut(y),
+                Equal => (*x, *xs) = (Nat::zero(), Sign::ZERO),
+                Less => {
+                    *xs = Sign::NEG;
+                    y.monus_rhs_mut(x);
+                }
+            },
+        },
+        Sign::NEG => match ys {
+            Sign::ZERO => {}
+            Sign::NEG => x.add_mut(y),
+            Sign::POS => match (*x).cmp(y) {
+                Greater => x.monus_mut(y),
+                Equal => (*x, *xs) = (Nat::zero(), Sign::ZERO),
+                Less => {
+                    *xs = Sign::POS;
+                    y.monus_rhs_mut(x);
+                }
+            },
+        },
     }
 }
 
 impl Add for Int {
     fn add(&self, rhs: &Self) -> Self {
-        use std::cmp::Ordering::*;
+        unsafe { add_sign(self.abs(), self.sgn(), rhs.abs(), rhs.sgn()) }
+    }
 
+    fn add_mut(&mut self, rhs: &Self) {
         unsafe {
-            match self.sgn() {
-                Sign::ZERO => rhs.clone(),
-                Sign::POS => match rhs.sgn() {
-                    Sign::ZERO => self.clone(),
-                    Sign::POS => Self::new_unchecked(
-                        self.abs().add(rhs.abs()),
-                        Sign::POS,
-                    ),
-                    Sign::NEG => match self.abs().cmp(rhs.abs()) {
-                        Less => Self::new_unchecked(
-                            rhs.abs().monus(self.abs()),
-                            Sign::NEG,
-                        ),
-                        Equal => Self::zero(),
-                        Greater => Self::new_unchecked(
-                            self.abs().monus(rhs.abs()),
-                            Sign::POS,
-                        ),
-                    },
-                },
-                Sign::NEG => match rhs.sgn() {
-                    Sign::ZERO => self.neg(),
-                    Sign::NEG => Self::new_unchecked(
-                        self.abs().add(rhs.abs()),
-                        Sign::NEG,
-                    ),
-                    Sign::POS => {
-                        if self.abs() >= rhs.abs() {
-                            Self::new_pos(self.abs().monus(rhs.abs()))
-                        } else {
-                            Self::new_unchecked(
-                                rhs.abs().add(self.abs()),
-                                Sign::NEG,
-                            )
-                        }
-                    }
-                },
-            }
+            add_sign_mut(&mut self.abs, &mut self.sgn, rhs.abs(), rhs.sgn())
         }
     }
-}*/
+
+    fn add_rhs_mut(&self, rhs: &mut Self) {
+        unsafe {
+            add_sign_mut(&mut rhs.abs, &mut rhs.sgn, self.abs(), self.sgn())
+        }
+    }
+}
+
+impl Sub for Int {
+    fn sub(&self, rhs: &Self) -> Self {
+        unsafe { add_sign(self.abs(), self.sgn(), rhs.abs(), -rhs.sgn()) }
+    }
+
+    fn sub_mut(&mut self, rhs: &Self) {
+        unsafe {
+            add_sign_mut(&mut self.abs, &mut self.sgn, rhs.abs(), -rhs.sgn())
+        }
+    }
+
+    fn sub_rhs_mut(&self, rhs: &mut Self) {
+        unsafe {
+            rhs.sgn_mut().neg_mut();
+            add_sign_mut(&mut rhs.abs, &mut rhs.sgn, self.abs(), self.sgn())
+        }
+    }
+}
 
 impl Mul for Int {
     fn mul(&self, x: &Self) -> Self {
@@ -180,5 +281,39 @@ impl Mul for Int {
         unsafe {
             Self::new_unchecked(self.abs().mul(x.abs()), self.sgn() * x.sgn())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Auxiliary method for testing addition.
+    fn add_test(mut x: Int, y: Int, z: Int) {
+        // Immutable addition.
+        assert_eq!(x.add(&y), z);
+
+        // Mutable addition.
+        let mut x0 = x.clone();
+        x0.add_mut(&y);
+        assert_eq!(x0, z);
+
+        // Mutable addition (rhs).
+        y.add_rhs_mut(&mut x);
+        assert_eq!(x, z);
+    }
+
+    /// Performs various test additions.
+    #[test]
+    fn add() {
+        add_test(int!(5), int!(M 5), int!(0));
+        add_test(int!(1), int!(M 2), int!(M 1));
+        add_test(int!(M u32::MAX), int!(M 1), int!(M 0, 1));
+
+        add_test(
+            int!(M 2990080069, 3717786483, 3347647318),
+            int!(2174112409, 4183093485, 906683806),
+            int!(M 815967660, 3829660294, 2440963511),
+        )
     }
 }

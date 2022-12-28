@@ -13,7 +13,7 @@
 //! Correctly managing these two kinds of lists under the same interface is a
 //! subtle matter. See [`List`] for more details.
 
-use super::{basic::*, dim::*, SliceLike};
+use super::*;
 use std::fmt::Write;
 
 /// An enum for one of two values, a "finite" `usize` value, or an infinite
@@ -526,9 +526,8 @@ where
 mod tests {
     use super::Matrix;
     use crate::{
-        data::{MatrixDyn, MatrixMN},
+        data::{MatrixDyn, MatrixMN, Wu8},
         matrix_dyn, matrix_mn,
-        traits::basic::Wu8,
     };
     use std::num::Wrapping;
 

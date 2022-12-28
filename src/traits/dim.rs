@@ -3,12 +3,8 @@
 //! This allows us to work with lists with a compile-time number of coordinates
 //! (although almost always we work with 1 or 2 coordinates).
 
-use super::{
-    basic::{One, Zero},
-    matrix::Dim,
-    ArrayLike, SliceLike,
-};
-pub use crate::{Transparent,ArrayFromIter};
+use super::{matrix::Dim, ArrayLike, One, SliceLike, Zero};
+pub use crate::{ArrayFromIter, Transparent};
 pub use xmath_core::{Succ, U1};
 
 /// The array type associated to the type-level integer [`U1`].
@@ -217,7 +213,7 @@ impl<D: TypeNum> TypeNum for Succ<D> {
 /// ## Example
 ///
 /// ```
-/// # use xmath::traits::dim::{U1, Succ};
+/// # use xmath::traits::{U1, Succ};
 /// # use xmath::dim;
 /// let x: dim!(1) = U1;
 /// let y: dim!(2) = Succ(x);
@@ -244,7 +240,6 @@ pub type U3 = Succ<U2>;
 /// ## Example
 ///
 /// ```
-/// # use xmath::traits::dim::{CPair, C1};
 /// # use xmath::{array_type, array};
 /// let x: array_type!(usize; 1) = array!(0);
 /// let y: array_type!(usize; 2) = array!(0, 1);
@@ -256,7 +251,7 @@ macro_rules! array {
         xmath::traits::Array1($t)
     };
     ($t: expr, $($ts: expr),*) => {
-        xmath::traits::dim::ArrayPair($t, xmath::array!($($ts),*))
+        xmath::traits::ArrayPair($t, xmath::array!($($ts),*))
     };
 }
 
@@ -266,11 +261,11 @@ macro_rules! array {
 /// ## Example
 ///
 /// ```
-/// # use xmath::traits::dim::{CPair, C1};
-/// # use xmath::array;
-/// let x: array_type!(usize; 1) = C1(0);
-/// let y: array_type!(usize; 2) = CPair(0, C1(1));
-/// let z: array_type!(usize; 3) = CPair(0, CPair(1, C1(2)));
+/// # use xmath::traits::{Array1, ArrayPair};
+/// # use xmath::array_type;
+/// let x: array_type!(usize; 1) = Array1(0);
+/// let y: array_type!(usize; 2) = ArrayPair(0, Array1(1));
+/// let z: array_type!(usize; 3) = ArrayPair(0, ArrayPair(1, Array1(2)));
 /// ```
 #[macro_export]
 macro_rules! array_type {

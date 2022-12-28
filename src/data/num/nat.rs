@@ -118,14 +118,15 @@ impl One for Nat {
 
 impl ZeroNeOne for Nat {}
 
-/// A convenience macro for defining a natural from its underlying array.
+/// A convenience macro for defining a natural from its underlying array, in a
+/// manner similar to [`vec`].
 ///
 /// ## Examples
 ///
 /// ```
 /// # use xmath::nat;
 /// # use xmath::data::Nat;
-/// # use xmath::traits::basic::Zero;
+/// # use xmath::traits::Zero;
 /// assert_eq!(nat!(0), Nat::zero());
 /// assert_eq!(nat!(5), Nat::from(5u32));
 /// assert_eq!(nat!(0, 1), Nat::from(vec![0, 1]));
@@ -133,13 +134,13 @@ impl ZeroNeOne for Nat {}
 #[macro_export]
 macro_rules! nat {
     (0) => {
-        Nat::zero()
+        xmath::data::Nat::zero()
     };
     ($x: expr) => {
-        Nat::from($x as u32)
+        xmath::data::Nat::from($x as u32)
     };
     ($($xs: expr),*) => {
-        Nat::from(vec![$($xs),*])
+        xmath::data::Nat::from(vec![$($xs),*])
     }
 }
 

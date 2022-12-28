@@ -509,7 +509,7 @@ impl<T> ColVec<T> {
 /// # use std::num::Wrapping;
 /// # use xmath::data::MatrixMN;
 /// # use xmath::matrix_mn;
-/// # use xmath::traits::basic::Wu8;///
+/// # use xmath::traits::Wu8;///
 /// let m: MatrixMN<Wu8, 2, 2> = matrix_mn!(
 ///     Wrapping(1), Wrapping(2);
 ///     Wrapping(3), Wrapping(4)

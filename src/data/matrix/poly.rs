@@ -766,7 +766,7 @@ impl<T: Ring> MatrixDyn<T> {
 /// # use std::num::Wrapping;
 /// # use xmath::data::MatrixDyn;
 /// # use xmath::matrix_dyn;
-/// # use xmath::traits::basic::Wu8;///
+/// # use xmath::traits::Wu8;///
 /// let m: MatrixDyn<Wu8> = matrix_dyn!(
 ///     Wrapping(1), Wrapping(2);
 ///     Wrapping(3), Wrapping(4)
@@ -1060,11 +1060,9 @@ impl<T: Ring + ZeroNeOne> Ring for Poly2<T> {}
 
 #[cfg(test)]
 mod tests {
-    use std::num::Wrapping;
-
-    use crate::algs::upow;
-
     use super::*;
+    use crate::{algs::upow, data::Wu8};
+    use std::num::Wrapping;
 
     #[test]
     fn add() {

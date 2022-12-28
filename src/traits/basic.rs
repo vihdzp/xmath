@@ -24,44 +24,8 @@
 //! traits have an additive or multiplicative counterpart, such as [`Add`] and
 //! [`Mul`], or [`Zero`] and [`One`].
 
-use crate::data::aliases::NonZero;
+use crate::data::{aliases::NonZero, *};
 use std::num::Wrapping;
-
-/// The ring of integers modulo 2⁸.
-pub type Wu8 = Wrapping<u8>;
-
-/// The ring of integers modulo 2¹⁶.
-pub type Wu16 = Wrapping<u16>;
-
-/// The ring of integers modulo 2³².
-pub type Wu32 = Wrapping<u32>;
-
-/// The ring of integers modulo 2⁶⁴.
-pub type Wu64 = Wrapping<u64>;
-
-/// The ring of integers modulo 2¹²⁸.
-pub type Wu128 = Wrapping<u128>;
-
-/// The ring of integers modulo the pointer size.
-pub type Wusize = Wrapping<usize>;
-
-/// The ring of integers modulo 2⁸.
-pub type Wi8 = Wrapping<i8>;
-
-/// The ring of integers modulo 2¹⁶.
-pub type Wi16 = Wrapping<i16>;
-
-/// The ring of integers modulo 2³².
-pub type Wi32 = Wrapping<i32>;
-
-/// The ring of integers modulo 2⁶⁴.
-pub type Wi64 = Wrapping<i64>;
-
-/// The ring of integers modulo 2¹²⁸.
-pub type Wi128 = Wrapping<i128>;
-
-/// The ring of integers modulo the pointer size.
-pub type Wisize = Wrapping<isize>;
 
 /// A trait for a `0` value.
 ///
