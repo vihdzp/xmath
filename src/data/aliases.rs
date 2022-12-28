@@ -1,16 +1,27 @@
 //! Declares various type aliases, which change the structure a type is endowed
 //! with.
 
-use crate::traits::basic::*;
-use crate::traits::dim::{C2, U2};
-use crate::traits::matrix::*;
+use xmath_macro::{ArrayFromIter, Transparent};
+
+use crate::traits::*;
 
 /// A type alias that endows a type with additive operations instead of
 /// multiplicative ones.
 ///
 /// This allows us to implement algorithms for addition, and have them
 /// immediately in multiplicative contexts.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Transparent,
+    ArrayFromIter,
+)]
 pub struct Additive<T>(pub T);
 
 impl<T> Additive<T> {
@@ -77,7 +88,18 @@ impl<T: MulGroup> AddGroup for Additive<T> {}
 ///
 /// This allows us to implement algorithms for multiplication, and have them
 /// immediately in additive contexts.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Transparent,
+    ArrayFromIter,
+)]
 pub struct Multiplicative<T>(pub T);
 
 impl<T> Multiplicative<T> {
@@ -167,7 +189,7 @@ impl<T: Zero> NonZero<T> {
     ///
     /// The caller must ensure `x` is indeed nonzero.
     pub unsafe fn to_ref(x: &T) -> &Self {
-        &*(x as *const T).cast()
+        crate::transmute_ref(x)
     }
 
     /// Gets a mutable `NonZero<T>` reference from a nonzero `T` reference.
@@ -176,7 +198,7 @@ impl<T: Zero> NonZero<T> {
     ///
     /// The caller must ensure `x` is indeed nonzero.
     pub unsafe fn to_mut(x: &mut T) -> &mut Self {
-        &mut *(x as *mut T).cast()
+        crate::transmute_mut(x)
     }
 
     /// Initializes a new `NonZero` from a given nonzero value.
@@ -233,49 +255,23 @@ impl<T: IntegralDomain + MulMonoid + ZeroNeOne> MulMonoid for NonZero<T> {}
 
 /// A wrapper for a matrix that is to be interpreted with the rows and columns
 /// swapped.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, Transparent, ArrayFromIter,
+)]
 #[repr(transparent)]
 pub struct Transpose<T>(pub T);
 
-/// Returns a reference to the underlying matrix.
-impl<T> AsRef<T> for Transpose<T> {
-    fn as_ref(&self) -> &T {
-        &self.0
-    }
-}
-
-/// Returns a mutable reference to the underlying matrix.
-impl<T> AsMut<T> for Transpose<T> {
-    fn as_mut(&mut self) -> &mut T {
-        &mut self.0
-    }
-}
-
-impl<T> Transpose<T> {
-    /// Gets a `Transpose<T>` reference from a `T` reference.
-    pub fn to_ref(x: &T) -> &Self {
-        // Safety: the type is `repr(transparent)`.
-        unsafe { &*(x as *const T).cast() }
-    }
-
-    /// Gets a mutable `Transpose<T>` reference from a mutable `T` reference.
-    pub fn to_mut(x: &mut T) -> &mut Self {
-        // Safety: the type is `repr(transparent)`.
-        unsafe { &mut *(x as *mut T).cast() }
-    }
-}
-
 impl<M: List<U2>> List<U2> for Transpose<M> {
     type Item = M::Item;
-    const SIZE: C2<Dim> = M::SIZE.swap();
+    const SIZE: Array2<Dim> = M::SIZE.swap();
 
-    fn coeff_ref_gen(&self, index: &C2<usize>) -> Option<&Self::Item> {
+    fn coeff_ref_gen(&self, index: &Array2<usize>) -> Option<&Self::Item> {
         self.0.coeff_ref_gen(&index.swap())
     }
 
     unsafe fn coeff_set_unchecked_gen(
         &mut self,
-        index: &C2<usize>,
+        index: &Array2<usize>,
         value: Self::Item,
     ) {
         self.0.coeff_set_unchecked_gen(&index.swap(), value)

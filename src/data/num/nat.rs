@@ -2,16 +2,13 @@
 //! operations on them.
 
 use crate::data::{trim, Poly};
-use crate::traits::basic::*;
+use crate::traits::*;
 
-/// Gets the `i`-th dword of an `u64`.
-const fn get_dword_u64(x: u64, i: u8) -> u32 {
-    ((x >> (32 * i)) & 0xFFFFFFFF) as u32
-}
-
-/// Gets the `i`-th dword of an `u128`.
-const fn get_dword_u128(x: u128, i: u8) -> u32 {
-    ((x >> (32 * i)) & 0xFFFFFFFF) as u32
+/// Gets the `i`-th dword from a number `x`.
+macro_rules! get_dword {
+    ($x: expr, $i: expr) => {
+        ($x >> 32 * $i & 0xFFFFFFFF) as u32
+    };
 }
 
 /// A variable-sized natural number.
@@ -44,17 +41,17 @@ impl From<u32> for Nat {
 
 impl From<u64> for Nat {
     fn from(x: u64) -> Self {
-        vec![get_dword_u64(x, 0), get_dword_u64(x, 1)].into()
+        vec![get_dword!(x, 0), get_dword!(x, 1)].into()
     }
 }
 
 impl From<u128> for Nat {
     fn from(x: u128) -> Self {
         vec![
-            get_dword_u128(x, 0),
-            get_dword_u128(x, 1),
-            get_dword_u128(x, 2),
-            get_dword_u128(x, 3),
+            get_dword!(x, 0),
+            get_dword!(x, 1),
+            get_dword!(x, 2),
+            get_dword!(x, 3),
         ]
         .into()
     }
@@ -161,46 +158,89 @@ pub fn sort_by<'a, T, U: PartialOrd, F: Fn(&T) -> U>(
 
 /// Performs the operations `lhs + rhs + carry` and returns the lower 32 bits
 /// and whether there was a carry.
-fn carrying_add(lhs: u32, rhs: u32, carry: bool) -> (u32, bool) {
+const fn carrying_add(lhs: u32, rhs: u32, carry: bool) -> (u32, bool) {
     // This operation is bounded by `2 × 2³² - 1`.
     let res = (lhs as u64) + (rhs as u64) + (carry as u64);
-    (get_dword_u64(res, 0), res > u32::MAX as u64)
+    (get_dword!(res, 0), res > u32::MAX as u64)
 }
 
 /// Performs the operation `lhs * rhs + carry1 + carry2` and returns the lower
 /// and upper 32 bits of the result, in that order.
-fn carrying_mul(lhs: u32, rhs: u32, carry1: u32, carry2: u32) -> (u32, u32) {
+const fn carrying_mul(
+    lhs: u32,
+    rhs: u32,
+    carry1: u32,
+    carry2: u32,
+) -> (u32, u32) {
     // This operation is bounded by `2⁶⁴ - 1`.
     let res = (lhs as u64) * (rhs as u64) + (carry1 as u64) + (carry2 as u64);
-    (get_dword_u64(res, 0), get_dword_u64(res, 1))
+    (get_dword!(res, 0), get_dword!(res, 1))
 }
 
-impl Nat {
-    /// An auxiliary method. If the carry flag is set, adds one to `s` and
-    /// writes the output in `v`. Otherwise just copies `s` to `v`.
-    fn carry_push(s: &[u32], v: &mut Vec<u32>, mut carry: bool) {
-        let mut i = 0;
+/// An auxiliary method. If the carry flag is set, adds one to `s` and
+/// writes the output in `v`. Otherwise just copies `s` to `v`.
+fn carry_push_add(s: &[u32], v: &mut Vec<u32>, mut carry: bool) {
+    let mut i = 0;
 
-        // We push zeros unless there's no more carry. We optimize around the
-        // fact that each carry is very unlikely.
-        while carry {
-            let x = *s.get(i).unwrap_or(&0);
+    // We push zeros unless there's no more carry. We optimize around the
+    // fact that each carry is very unlikely.
+    while carry {
+        let x = *s.get(i).unwrap_or(&0);
 
-            if x == u32::MAX {
-                v.push(0);
-            } else {
-                v.push(x + 1);
+        if x == u32::MAX {
+            v.push(0);
+        } else {
+            v.push(x + 1);
+            carry = false;
+        }
+
+        i += 1;
+    }
+
+    // Copy the rest of the array.
+    while i < s.len() {
+        v.push(s[i]);
+    }
+}
+
+/// Performs the operations `lhs - rhs - carry` and returns the lower 32 bits
+/// and whether there was a carry.
+const fn carrying_sub(lhs: u32, rhs: u32, carry: bool) -> (u32, bool) {
+    // This operation is bounded by `-2³²`.
+    let res = (lhs as i64) - (rhs as i64) - (carry as i64);
+    (get_dword!(res, 0), res.is_negative())
+}
+
+/// An auxiliary method. If the carry flag is set, subtracts one to `s` and
+/// writes the output in `v`. Otherwise just copies `s` to `v`.
+///
+/// Returns whether the computation is successful, i.e. does not underflow.
+fn carry_push_sub(s: &[u32], v: &mut Vec<u32>, mut carry: bool) -> bool {
+    let mut i = 0;
+
+    // We push zeros unless there's no more carry. We optimize around the
+    // fact that each carry is very unlikely.
+    while carry {
+        match s.get(i) {
+            Some(0) => v.push(u32::MAX),
+            Some(x) => {
+                v.push(x - 1);
                 carry = false;
             }
-
-            i += 1;
+            None => {
+                return false;
+            }
         }
 
-        // Copy the rest of the array.
-        while i < s.len() {
-            v.push(s[i]);
-        }
+        i += 1;
     }
+
+    // Copy the rest of the array.
+    while i < s.len() {
+        v.push(s[i]);
+    }
+
+    true
 }
 
 impl Add for Nat {
@@ -219,7 +259,7 @@ impl Add for Nat {
         }
 
         // Continues until the second number runs out.
-        Nat::carry_push(&y.as_slice()[x.len()..], &mut res, carry);
+        carry_push_add(&y.as_slice()[x.len()..], &mut res, carry);
 
         // Safety: `carry_push` can't end in a `0`.
         unsafe { Poly::new_unchecked(res) }.into()
@@ -239,7 +279,7 @@ impl Add for Nat {
             // If the first number is at most as long as the second.
             if self.len() <= x.len() {
                 // Then keep pushing the next digits.
-                Nat::carry_push(
+                carry_push_add(
                     &x.0.as_slice()[self.len()..],
                     self.0.as_vec_mut(),
                     carry,
@@ -263,6 +303,10 @@ impl Add for Nat {
                 self.0.as_vec_mut().truncate(i + 1);
             }
         }
+    }
+
+    fn add_rhs_mut(&self, rhs: &mut Self) {
+        rhs.add_mut(self);
     }
 
     fn double(&self) -> Self {
@@ -519,9 +563,9 @@ impl Ord for Nat {
 
         // Compares entries in inverse order.
         for (i, j) in self.as_slice().iter().zip(other.as_slice()).rev() {
-            let res = (i.cmp(j));
+            let res = i.cmp(j);
             if res != std::cmp::Ordering::Equal {
-                return (res);
+                return res;
             }
         }
 
@@ -532,6 +576,119 @@ impl Ord for Nat {
 impl PartialOrd for Nat {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl Nat {
+    /// The monus or truncated subtraction of two naturals. Returns `0` if
+    /// `rhs > self`.
+    pub fn monus(&self, rhs: &Self) -> Self {
+        if self.len() < rhs.len() {
+            return Self::zero();
+        }
+
+        let mut res = Vec::with_capacity(self.len());
+        let mut carry = false;
+
+        // Subtracts digits one by one, until the first number runs out.
+        for i in 0..rhs.len() {
+            let (d, b) = carrying_sub(self.digit(i), rhs.digit(i), carry);
+            res.push(d);
+            carry = b;
+        }
+
+        // Continues until the second number runs out.
+        if carry_push_sub(&self.as_slice()[rhs.len()..], &mut res, carry) {
+            res.into()
+        } else {
+            Self::zero()
+        }
+    }
+
+    /// The monus or truncated subtraction of two naturals, performed in place.
+    /// Assigns `0` if `rhs > self`.
+    pub fn monus_mut(&mut self, rhs: &Self) {
+        if self.len() < rhs.len() {
+            *self = Self::zero();
+            return;
+        }
+
+        unsafe {
+            let mut carry = false;
+
+            // Modify digits one by one, until our space runs out.
+            for i in 0..rhs.len() {
+                let (d, b) = carrying_sub(self.digit(i), rhs.digit(i), carry);
+                self.0.as_slice_mut()[i] = d;
+                carry = b;
+            }
+
+            // We keep overwriting the number.
+            let mut i = rhs.len();
+
+            while carry {
+                match self.as_slice().get(i) {
+                    Some(0) => {
+                        self.0.as_slice_mut()[i] = u32::MAX;
+                    }
+                    Some(_) => {
+                        self.0.as_slice_mut()[i] -= 1;
+                        carry = false;
+                    }
+                    None => {
+                        *self = Self::zero();
+                        return;
+                    }
+                }
+
+                i += 1;
+            }
+
+            trim(self.0.as_vec_mut())
+        }
+    }
+
+    /// The monus or truncated subtraction of two naturals, performed in place.
+    /// Assigns `0` if `rhs > self`.
+    pub fn monus_rhs_mut(&self, rhs: &mut Self) {
+        if self.len() < rhs.len() {
+            *rhs = Self::zero();
+            return;
+        }
+
+        unsafe {
+            let mut carry = false;
+
+            // Modify digits one by one, until our space runs out.
+            for i in 0..rhs.len() {
+                let (d, b) = carrying_sub(self.digit(i), rhs.digit(i), carry);
+                rhs.0.as_slice_mut()[i] = d;
+                carry = b;
+            }
+
+            // We keep overwriting the number.
+            let mut i = rhs.len();
+
+            while carry {
+                match self.as_slice().get(i) {
+                    Some(0) => {
+                        rhs.0.as_slice_mut()[i] = u32::MAX;
+                    }
+                    Some(_) => {
+                        rhs.0.as_slice_mut()[i] -= 1;
+                        carry = false;
+                    }
+                    None => {
+                        *rhs = Self::zero();
+                        return;
+                    }
+                }
+
+                i += 1;
+            }
+
+            trim(rhs.0.as_vec_mut())
+        }
     }
 }
 
@@ -668,8 +825,34 @@ mod tests {
     fn cmp() {
         use std::cmp::Ordering::*;
 
-        assert_eq!(((nat!(15)).cmp(&(nat!(17)))), Less);
+        assert_eq!(nat!(15).cmp(&nat!(17)), Less);
         assert_eq!(nat!(0, 1).cmp(&nat!(u32::MAX)), Greater);
         assert_eq!(nat!(4, 4).cmp(&nat!(3, 4)), Greater);
+        assert_eq!(nat!(12, 14).cmp(&nat!(12, 14)), Equal);
+    }
+
+    /// Auxiliary method for testing a subtraction.
+    fn monus_test(mut x: Nat, y: Nat, z: Nat) {
+        // Immutable shift.
+        assert_eq!(x.monus(&y), z);
+
+        // Mutable shift.
+        x.monus_mut(&y);
+        assert_eq!(x, z);
+    }
+
+    /// Performs various test subtractions.
+    #[test]
+    fn monus() {
+        monus_test(nat!(3), nat!(2), nat!(1));
+        monus_test(nat!(5, 0, 1), nat!(6), nat!(u32::MAX, u32::MAX));
+        monus_test(nat!(14, 16), nat!(0, 22), nat!(0));
+        monus_test(nat!(3, 1), nat!(3, 2), nat!(0));
+
+        monus_test(
+            nat!(1541468456, 839813775, 2949060051),
+            nat!(2189725333, 2257444005, 2601135520),
+            nat!(3646710419, 2877337065, 347924530),
+        )
     }
 }

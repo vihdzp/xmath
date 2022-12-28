@@ -25,6 +25,12 @@
 //! addition can overflow. We make a sole exception for running out of memory,
 //! with the understanding that it should only happen in extreme cases.
 
-pub mod basic;
-pub mod dim;
-pub mod matrix;
+mod basic;
+mod dim;
+mod layout;
+mod matrix;
+
+pub use basic::*;
+pub use dim::*;
+pub use layout::*;
+pub use matrix::*;

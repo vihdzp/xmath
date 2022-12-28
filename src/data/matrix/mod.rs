@@ -7,7 +7,7 @@ mod poly;
 pub use array::*;
 pub use poly::*;
 
-use crate::traits::{basic::*, dim::*, matrix::*};
+use crate::traits::{*};
 
 /// The empty list of a given type. This is a unit type.
 ///

@@ -1,5 +1,5 @@
 use super::{Int, Nat};
-use crate::{data::aliases::NonZero, traits::basic::*};
+use crate::{data::aliases::NonZero, traits::*};
 
 /// A variable-sized rational number.
 ///

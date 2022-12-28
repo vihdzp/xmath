@@ -2,7 +2,7 @@
 //! implementations.
 
 use super::aliases::NonZero;
-use crate::{traits::basic::*, *};
+use crate::{traits::*, *};
 use std::fmt::{Display, Write};
 
 /// The trivial structure with a single element.

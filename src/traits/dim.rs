@@ -6,63 +6,72 @@
 use super::{
     basic::{One, Zero},
     matrix::Dim,
+    ArrayLike, SliceLike,
 };
+pub use crate::{Transparent,ArrayFromIter};
 pub use xmath_core::{Succ, U1};
 
-/// A single element with `repr(transparent)`.
+/// The array type associated to the type-level integer [`U1`].
+///
+/// If you just want an array with a single entry, consider using
+/// [`Array<1>`](crate::data::Array) instead.
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct C1<T>(pub T);
-
-/// Reads a single element from the iterator and returns the resulting `C1`.
-impl<T> FromIterator<T> for C1<T> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self(iter.into_iter().next().unwrap())
-    }
-}
-
-/// Returns a reference to the single entry.
-impl<T> AsRef<[T]> for C1<T> {
-    fn as_ref(&self) -> &[T] {
-        std::slice::from_ref(&self.0)
-    }
-}
-
-/// Returns a mutable reference to the single entry.
-impl<T> AsMut<[T]> for C1<T> {
-    fn as_mut(&mut self) -> &mut [T] {
-        std::slice::from_mut(&mut self.0)
-    }
-}
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Transparent,
+    ArrayFromIter,
+)]
+pub struct Array1<T>(pub T);
 
 /// Displays the single entry.
-impl<T: std::fmt::Display> std::fmt::Display for C1<T> {
+impl<T: std::fmt::Display> std::fmt::Display for Array1<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-/// A pair of elements with `repr(C)`.
+/// A pair of elements with `repr(C)`. Used to build the array types for
+/// type-level integers, see also [`TypeNum`].
 ///
 /// This doesn't implement any algebraic traits, see [`Pair`](crate::data::Pair)
 /// for that usage.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct CPair<T, U>(pub T, pub U);
+pub struct ArrayPair<T, U>(pub T, pub U);
 
-/// The array type associated with [`U2`].
-pub type C2<T> = CPair<T, C1<T>>;
+impl<T, U> ArrayPair<T, U> {
+    /// Initializes a new pair.
+    pub fn new(x: T, y: U) -> Self {
+        Self(x, y)
+    }
+}
 
-/// The array type associated with [`U3`].
-pub type C3<T> = CPair<T, C2<T>>;
+/// The array type associated to the type-level integer [`U2`].
+///
+/// If you just want an array with two entries, consider using
+/// [`Array<2>`](crate::data::Array) instead.
+pub type Array2<T> = ArrayPair<T, Array1<T>>;
 
-impl<T> C2<T> {
-    /// Initializes a new `C2`.
-    pub const fn new(x: T, y: T) -> Self {
-        crate::tuple!(x, y)
+/// The array type associated to the type-level integer [`U3`].
+///
+/// If you just want an array with three entries, consider using
+/// [`Array<3>`](crate::data::Array) instead.
+pub type C3<T> = ArrayPair<T, Array2<T>>;
+
+impl<T> Array2<T> {
+    /// Initializes a new `Array2`.
+    pub const fn new2(x: T, y: T) -> Self {
+        crate::array!(x, y)
     }
 
-    /// The first entry of the `C2`.
+    /// The first entry of the `Array2`.
     pub const fn fst(&self) -> &T {
         &self.0
     }
@@ -72,7 +81,7 @@ impl<T> C2<T> {
         self.fst()
     }
 
-    /// The second entry of the `C2`.
+    /// The second entry of the `Array2`.
     pub const fn snd(&self) -> &T {
         &self.1 .0
     }
@@ -87,7 +96,7 @@ impl<T> C2<T> {
     where
         T: Copy,
     {
-        Self::new(self.1 .0, self.0)
+        Self::new2(self.1 .0, self.0)
     }
 
     /// Converts the tuple into an array.
@@ -115,86 +124,67 @@ impl ConstZero for Dim {
     const ZERO: Self = Self::Fin(0);
 }
 
-impl<T: ConstZero> ConstZero for C1<T> {
+impl<T: ConstZero> ConstZero for Array1<T> {
     const ZERO: Self = Self(T::ZERO);
 }
 
-impl<T: ConstZero, U: ConstZero> ConstZero for CPair<T, U> {
+impl<T: ConstZero, U: ConstZero> ConstZero for ArrayPair<T, U> {
     const ZERO: Self = Self(T::ZERO, U::ZERO);
 }
 
-/// Represents an array of elements associated to a type-level integer, with the
-/// same layout and alignment as `[Self::Item; Self::Len]`.
+/// A trait for an array of elements associated to a type-level integer.
 ///
-/// This trait is only implemented for `C1<T>`, `CPair<T, C1<T>>`,
-/// etc. and shouldn't be implemented for any other types.
-pub trait CTuple:
-    ConstZero + FromIterator<Self::Item> + AsRef<[Self::Item]> + AsMut<[Self::Item]>
-{
-    /// The length of the tuple.
-    const LEN: usize;
+/// This trait is only implemented for `C1<T>`, `Array2<T> = CPair<T, C1<T>>`,
+/// `C3<T> = CPair<T, Array2<T>>`, etc. and shouldn't be implemented for any other
+/// types.
+pub trait ArrayTuple: ConstZero + ArrayLike {}
 
-    /// The item in the tuple.
-    type Item: ConstZero;
-}
+impl<T: ConstZero> ArrayTuple for Array1<T> {}
 
-impl<T: ConstZero> CTuple for C1<T> {
-    const LEN: usize = 1;
-    type Item = T;
-}
-
-/// Reads elements from the iterator until the tuple is filled.
-impl<T: CTuple> FromIterator<T::Item> for CPair<T::Item, T> {
-    fn from_iter<I: IntoIterator<Item = T::Item>>(iter: I) -> Self {
-        let mut iter = iter.into_iter();
-        Self(iter.next().unwrap(), iter.collect())
-    }
-}
-
-/// Returns the underlying slice of elements for the tuple.
-impl<T: CTuple> AsRef<[T::Item]> for CPair<T::Item, T> {
-    fn as_ref(&self) -> &[T::Item] {
-        unsafe {
-            std::slice::from_raw_parts(
-                self as *const Self as *const _,
-                Self::LEN,
-            )
-        }
-    }
-}
-
-/// Returns the underlying mutable slice of elements for the tuple.
-impl<T: CTuple> AsMut<[T::Item]> for CPair<T::Item, T> {
-    fn as_mut(&mut self) -> &mut [T::Item] {
-        unsafe {
-            std::slice::from_raw_parts_mut(
-                self as *mut Self as *mut _,
-                Self::LEN,
-            )
-        }
-    }
-}
-
-impl<T: std::fmt::Display> std::fmt::Display for C2<T> {
+impl<T: std::fmt::Display> std::fmt::Display for Array2<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}×{}", self.fst(), self.snd())
     }
 }
 
-impl<T: CTuple> CTuple for CPair<T::Item, T> {
-    const LEN: usize = T::LEN + 1;
+impl<T: ArrayLike> SliceLike for ArrayPair<T::Item, T> {
     type Item = T::Item;
+
+    fn as_slice(&self) -> &[Self::Item] {
+        ArrayLike::as_ref(self)
+    }
+
+    fn as_mut_slice(&mut self) -> &mut [Self::Item] {
+        ArrayLike::as_mut(self)
+    }
 }
 
+impl<T: ArrayLike> ArrayLike for ArrayPair<T::Item, T> {
+    const LEN: usize = T::LEN + 1;
+
+    fn from_iter_mut<I: Iterator<Item = Self::Item>>(iter: &mut I) -> Self {
+        Self::new(iter.next().unwrap(), T::from_iter_mut(iter))
+    }
+}
+
+impl<T: ArrayLike> FromIterator<T::Item> for ArrayPair<T::Item, T> {
+    fn from_iter<I: IntoIterator<Item = T::Item>>(iter: I) -> Self {
+        ArrayLike::from_iter(iter)
+    }
+}
+
+impl<T: ArrayTuple> ArrayTuple for ArrayPair<T::Item, T> where T::Item: ConstZero
+{}
+
 /// The zero element is the tuple all of whose entries are 0.
-impl<T: Zero, U: CTuple<Item = T> + Eq> Zero for U {
+impl<T: Zero, U: ArrayTuple<Item = T> + Eq> Zero for U {
     fn zero() -> Self {
         std::iter::repeat_with(T::zero).collect()
     }
 }
 
 /// The one element is the tuple all of whose entries are 1.
-impl<T: One, U: CTuple<Item = T> + Eq> One for U {
+impl<T: One, U: ArrayTuple<Item = T> + Eq> One for U {
     fn one() -> Self {
         std::iter::repeat_with(T::one).collect()
     }
@@ -209,17 +199,17 @@ pub trait TypeNum {
     const VAL: usize;
 
     /// An array of the corresponding length.
-    type Array<T: ConstZero>: CTuple<Item = T>;
+    type Array<T: ConstZero>: ArrayTuple<Item = T>;
 }
 
 impl TypeNum for U1 {
     const VAL: usize = 1;
-    type Array<T: ConstZero> = C1<T>;
+    type Array<T: ConstZero> = Array1<T>;
 }
 
 impl<D: TypeNum> TypeNum for Succ<D> {
     const VAL: usize = D::VAL + 1;
-    type Array<T: ConstZero> = CPair<T, D::Array<T>>;
+    type Array<T: ConstZero> = ArrayPair<T, D::Array<T>>;
 }
 
 /// Returns the type-level integer associated with a literal.
@@ -249,42 +239,43 @@ pub type U2 = Succ<U1>;
 /// The type-level integer `3`.
 pub type U3 = Succ<U2>;
 
-/// Returns a [`CTuple`] from a list of values.
+/// Returns an [`ArrayTuple`] from a list of values.
 ///
 /// ## Example
 ///
 /// ```
 /// # use xmath::traits::dim::{CPair, C1};
-/// # use xmath::{ctuple, tuple};
-/// let x: ctuple!(usize; 1) = tuple!(0);
-/// let y: ctuple!(usize; 2) = tuple!(0, 1);
-/// let z: ctuple!(usize; 3) = tuple!(0, 1, 2);
+/// # use xmath::{array_type, array};
+/// let x: array_type!(usize; 1) = array!(0);
+/// let y: array_type!(usize; 2) = array!(0, 1);
+/// let z: array_type!(usize; 3) = array!(0, 1, 2);
 /// ```
 #[macro_export]
-macro_rules! tuple {
+macro_rules! array {
     ($t: expr) => {
-        $crate::traits::dim::C1($t)
+        xmath::traits::Array1($t)
     };
     ($t: expr, $($ts: expr),*) => {
-        $crate::traits::dim::CPair($t, $crate::tuple!($($ts),*))
+        xmath::traits::dim::ArrayPair($t, xmath::array!($($ts),*))
     };
 }
 
-/// `ctuple!(T; N)` returns the [`CTuple`] type of item `T` and length `N`.
+/// `array_type!(T; N)` returns the [`ArrayTuple`] type of item `T` and length
+/// `N`.
 ///
 /// ## Example
 ///
 /// ```
 /// # use xmath::traits::dim::{CPair, C1};
-/// # use xmath::ctuple;
-/// let x: ctuple!(usize; 1) = C1(0);
-/// let y: ctuple!(usize; 2) = CPair(0, C1(1));
-/// let z: ctuple!(usize; 3) = CPair(0, CPair(1, C1(2)));
+/// # use xmath::array;
+/// let x: array_type!(usize; 1) = C1(0);
+/// let y: array_type!(usize; 2) = CPair(0, C1(1));
+/// let z: array_type!(usize; 3) = CPair(0, CPair(1, C1(2)));
 /// ```
 #[macro_export]
-macro_rules! ctuple {
+macro_rules! array_type {
     ($t: ty; $n: literal) => {
-        <$crate::dim!($n) as $crate::traits::dim::TypeNum>::Array<$t>
+        <xmath::dim!($n) as xmath::traits::TypeNum>::Array<$t>
     };
 }
 
@@ -304,7 +295,7 @@ pub struct TupleIter<T> {
     finished: bool,
 }
 
-impl<T: Zero + AsRef<[usize]>> TupleIter<T> {
+impl<T: Zero + SliceLike<Item = usize>> TupleIter<T> {
     /// An iterator that has exhausted all its values.
     pub fn exhausted() -> Self {
         Self {
@@ -317,7 +308,7 @@ impl<T: Zero + AsRef<[usize]>> TupleIter<T> {
     /// Declares a new tuple iterator with the specified limit.
     pub fn new(limit: T) -> Self {
         // If any entry of the limit is 0, the iterator is already done.
-        for &x in limit.as_ref() {
+        for &x in limit.as_slice() {
             if x == 0 {
                 return Self::exhausted();
             }
@@ -345,7 +336,7 @@ fn increment(current: &mut [usize], limit: &[usize]) -> bool {
     true
 }
 
-impl<T: Clone + AsMut<[usize]>> Iterator for TupleIter<T> {
+impl<T: Clone + SliceLike<Item = usize>> Iterator for TupleIter<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -353,8 +344,10 @@ impl<T: Clone + AsMut<[usize]>> Iterator for TupleIter<T> {
             None
         } else {
             let next = self.current.clone();
-            self.finished =
-                increment(self.current.as_mut(), &*self.limit.as_mut());
+            self.finished = increment(
+                self.current.as_mut_slice(),
+                &*self.limit.as_mut_slice(),
+            );
             Some(next)
         }
     }
@@ -368,7 +361,7 @@ pub fn min<C: TypeNum>(
     let mut res = C::Array::<usize>::ZERO;
 
     for i in 0..C::VAL {
-        res.as_mut()[i] = x.as_ref()[i].min(y.as_ref()[i]);
+        res.as_mut_slice()[i] = x.as_slice()[i].min(y.as_slice()[i]);
     }
 
     res
@@ -386,7 +379,7 @@ pub fn pairwise<
     f: F,
 ) -> bool {
     for i in 0..C::VAL {
-        if !f(&x.as_ref()[i], &y.as_ref()[i]) {
+        if !f(&x.as_slice()[i], &y.as_slice()[i]) {
             return false;
         }
     }
@@ -401,15 +394,15 @@ mod test {
     /// Checks that the macros work as expected.
     #[test]
     fn tuple() {
-        let _: ctuple!(usize; 3) = tuple!(1, 2, 3);
-        let _: <dim!(3) as super::TypeNum>::Array<usize> = tuple!(1, 2, 3);
+        let _: array_type!(usize; 3) = array!(1, 2, 3);
+        let _: <dim!(3) as super::TypeNum>::Array<usize> = array!(1, 2, 3);
     }
 
     /// Checks that [`TupleIter`] outputs things in order.
     #[test]
     fn tuple_iter_1() {
         let res = [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2], [1, 2]];
-        for (i, x) in TupleIter::new(C2::new(2, 3)).enumerate() {
+        for (i, x) in TupleIter::new(Array2::new2(2, 3)).enumerate() {
             assert_eq!(x.to_array(), res[i]);
         }
     }
@@ -417,6 +410,6 @@ mod test {
     /// Checks that [`TupleIter`] handles the empty case accordingly.
     #[test]
     fn tuple_iter_2() {
-        assert_eq!(TupleIter::new(tuple!(1, 2, 0)).next(), None)
+        assert_eq!(TupleIter::new(array!(1, 2, 0)).next(), None)
     }
 }

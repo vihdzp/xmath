@@ -1,91 +1,44 @@
-use proc_macro::*;
+//! Defines various procedural macros for both internal and external use in
+//! `xmath`.
 
-/// The core crate name.
-const XMATH_CORE: &str = "xmath_core";
+mod derive;
+mod dim;
 
-/// The name for the 1 type.
-const U1: &str = "U1";
+use proc_macro::TokenStream;
+use syn::DeriveInput;
 
-/// The name for the successor type.
-const SUCC: &str = "Succ";
-
-/// An auxiliary type that simplifies building the necessary identifiers.
-#[derive(Default)]
-struct TokenTreeBuilder(Vec<TokenTree>);
-
-impl From<TokenTreeBuilder> for TokenStream {
-    fn from(value: TokenTreeBuilder) -> Self {
-        value.0.into_iter().collect()
-    }
-}
-
-impl TokenTreeBuilder {
-    /// Creates a new token tree builder.
-    fn new() -> Self {
-        Self::default()
-    }
-
-    /// Pushes an identifier with the given `string`, expanded at the call site.
-    fn push_ident(&mut self, string: &str) {
-        self.0
-            .push(TokenTree::Ident(Ident::new(string, Span::call_site())));
-    }
-
-    /// Pushes two colons `::`.
-    fn push_colons(&mut self) {
-        self.0
-            .push(TokenTree::Punct(Punct::new(':', Spacing::Joint)));
-        self.0
-            .push(TokenTree::Punct(Punct::new(':', Spacing::Alone)));
-    }
-
-    /// Pushes `xmath_core::`, then calls `push_ident` with the given `string`.
-    fn push_core_ident(&mut self, string: &str) {
-        self.push_ident(XMATH_CORE);
-        self.push_colons();
-        self.push_ident(string);
-    }
-
-    /// Pushes `<`.
-    fn push_lt(&mut self) {
-        self.0
-            .push(TokenTree::Punct(Punct::new('<', Spacing::Alone)));
-    }
-
-    /// Pushes `>` with the given spacing.
-    fn push_gt(&mut self, spacing: Spacing) {
-        self.0.push(TokenTree::Punct(Punct::new('>', spacing)));
-    }
-
-    /// Pushes the `>` character `n` times.
-    fn push_gts(&mut self, n: u8) {
-        if n != 0 {
-            for _ in 1..n {
-                self.push_gt(Spacing::Joint);
-            }
-            self.push_gt(Spacing::Alone);
-        }
-    }
-}
-
-/// Returns the type-level integer associated to `n != 0`.
-fn dim_aux(n: u8) -> TokenStream {
-    let mut builder = TokenTreeBuilder::new();
-
-    // Succ<Succ<...<
-    for _ in 1..n {
-        builder.push_core_ident(SUCC);
-        builder.push_lt();
-    }
-
-    // U1>>...>
-    builder.push_core_ident(U1);
-    builder.push_gts(n - 1);
-    builder.into()
-}
-
-/// Returns the type-level integer associated with a literal.
+/// Please call this as `xmath::dim`.
 #[proc_macro]
 pub fn dim(input: TokenStream) -> TokenStream {
-    dim_aux(input.to_string().parse().expect("invalid integer"))
+    dim::dim_aux(input.to_string().parse().expect("invalid integer"))
+}
+
+fn parse_derive(input: TokenStream) -> DeriveInput {
+    syn::parse(input).unwrap()
+}
+
+/// **This macro only works for structs like the following:**
+/// ```rs
+/// #[repr(transparent)]
+/// struct Foo<T>(T);
+/// ```
+/// It defines the `SliceLike`, `ArrayLike`, `FromIterator`, and `Transparent`
+/// traits in the obvious way, by treating `Foo<T>` as an array with a single
+/// element of type `T`.
+#[proc_macro_derive(Transparent)]
+pub fn transparent(input: TokenStream) -> TokenStream {
+    derive::transparent(parse_derive(input).ident)
+}
+
+/// Derives [`Index`](std::ops::Index) and [`IndexMut`](std::ops::IndexMut) from
+/// `SliceLike`.
+#[proc_macro_derive(SliceIndex)]
+pub fn slice_index(input: TokenStream) -> TokenStream {
+    derive::slice_index(parse_derive(input))
+}
+
+/// Derives [`FromIterator`] from `ArrayLike`.
+#[proc_macro_derive(ArrayFromIter)]
+pub fn array_from_iter(input: TokenStream) -> TokenStream {
+    derive::array_from_iter(parse_derive(input))
 }

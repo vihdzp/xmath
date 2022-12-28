@@ -1,6 +1,6 @@
 pub mod matrix;
 
-use crate::{data::aliases::Additive, traits::basic::*};
+use crate::{data::aliases::Additive, traits::*};
 
 /// Multiplication by doubling.
 ///

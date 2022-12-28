@@ -193,7 +193,7 @@ macro_rules! derive_neg {
             type Output = $x;
 
             fn neg(self) -> Self::Output {
-                $crate::traits::basic::Neg::neg(self)
+                xmath::traits::Neg::neg(self)
             }
         }
 
@@ -242,25 +242,24 @@ impl_inv!(f32, f64);
 /// Its multiplicative counterpart is the [`Mul`] trait.
 pub trait Add: Clone {
     /// The addition function on the type.
-    fn add(&self, x: &Self) -> Self;
+    fn add(&self, rhs: &Self) -> Self;
 
-    /// The addition-assignment function on the type.
-    ///
-    /// The default implementation is `*self = self.add(x)`.
-    fn add_mut(&mut self, x: &Self) {
-        *self = self.add(x);
+    /// The (left) addition-assignment function on the type.
+    fn add_mut(&mut self, rhs: &Self) {
+        *self = self.add(rhs);
+    }
+
+    /// The (right) addition-assignment function on the type.
+    fn add_rhs_mut(&self, rhs: &mut Self) {
+        *rhs = self.add(rhs);
     }
 
     /// Doubles a value.
-    ///
-    /// The default implementation is `self.add(self)`.
     fn double(&self) -> Self {
         self.add(self)
     }
 
     /// Doubles a value in place.
-    ///
-    /// The default implementation is `*self = self.double()`.
     fn double_mut(&mut self) {
         *self = self.double();
     }
@@ -290,7 +289,7 @@ macro_rules! derive_add {
             type Output = $x;
 
             fn add(self, rhs: Self) -> Self::Output {
-                $crate::traits::basic::Add::add(self, rhs)
+                xmath::traits::Add::add(self, rhs)
             }
         }
 
@@ -320,7 +319,7 @@ macro_rules! derive_add {
 
         impl std::ops::AddAssign<&$x> for $x {
             fn add_assign(&mut self, rhs: &Self) {
-                $crate::traits::basic::Add::add_mut(self, &rhs);
+                xmath::traits::Add::add_mut(self, &rhs);
             }
         }
 
@@ -341,25 +340,24 @@ macro_rules! derive_add {
 /// Its additive counterpart is the [`Add`] trait.
 pub trait Mul: Clone {
     /// The multiplication function on the type.
-    fn mul(&self, x: &Self) -> Self;
+    fn mul(&self, rhs: &Self) -> Self;
 
-    /// The multiplication-assignment function on the type.
-    ///
-    /// The default implementation is `*self = self.mul(x)`.
-    fn mul_mut(&mut self, x: &Self) {
-        *self = self.mul(x);
+    /// The (left) multiplication-assignment function on the type.
+    fn mul_mut(&mut self, rhs: &Self) {
+        *self = self.mul(rhs);
+    }
+
+    /// The (right) multiplication-assignment function on the type.
+    fn mul_rhs_mut(&self, rhs: &mut Self) {
+        *rhs = self.mul(rhs);
     }
 
     /// Squares a value.
-    ///
-    /// The default implementation is `self.mul(self)`.
     fn sq(&self) -> Self {
         self.mul(self)
     }
 
     /// Squares a value in place.
-    ///
-    /// The default implementation is `*self = self.sq()`.
     fn sq_mut(&mut self) {
         *self = self.sq();
     }
@@ -389,7 +387,7 @@ macro_rules! derive_mul {
             type Output = $x;
 
             fn mul(self, rhs: Self) -> Self::Output {
-                $crate::traits::basic::Mul::mul(self, rhs)
+                xmath::traits::Mul::mul(self, rhs)
             }
         }
 
@@ -419,7 +417,7 @@ macro_rules! derive_mul {
 
         impl std::ops::MulAssign<&$x> for $x {
             fn mul_assign(&mut self, rhs: &Self) {
-                $crate::traits::basic::Mul::mul_mut(self, &rhs);
+                xmath::traits::Mul::mul_mut(self, &rhs);
             }
         }
 
@@ -472,17 +470,19 @@ impl_comm_mul!(
 /// Its multiplicative counterpart is the [`Div`] trait.
 pub trait Sub: Add + Neg {
     /// The subtraction function on the type.
-    ///
-    /// The default implementation is `self.add(&x.neg())`.
-    fn sub(&self, x: &Self) -> Self {
-        self.add(&x.neg())
+    fn sub(&self, rhs: &Self) -> Self {
+        self.add(&rhs.neg())
     }
 
-    /// The subtraction-assignment function on the type.
-    ///
-    /// The default implementation is `self.add_mut(&x.neg())`.
-    fn sub_mut(&mut self, x: &Self) {
-        self.add_mut(&x.neg())
+    /// The (left) subtraction-assignment function on the type.
+    fn sub_mut(&mut self, rhs: &Self) {
+        self.add_mut(&rhs.neg());
+    }
+
+    /// The (right) subtraction-assignment function on the type.
+    fn sub_rhs_mut(&self, rhs: &mut Self) {
+        rhs.neg_mut();
+        self.add_rhs_mut(rhs);
     }
 }
 
@@ -506,7 +506,7 @@ macro_rules! derive_sub {
             type Output = $x;
 
             fn sub(self, rhs: Self) -> Self::Output {
-                $crate::traits::basic::Sub::sub(self, rhs)
+                xmath::traits::Sub::sub(self, rhs)
             }
         }
 
@@ -536,7 +536,7 @@ macro_rules! derive_sub {
 
         impl std::ops::SubAssign<&$x> for $x {
             fn sub_assign(&mut self, rhs: &Self) {
-                $crate::traits::basic::Sub::sub_mut(self, &rhs);
+                xmath::traits::Sub::sub_mut(self, &rhs);
             }
         }
 
@@ -557,17 +557,19 @@ macro_rules! derive_sub {
 /// Its additive counterpart is the [`Sub`] trait.
 pub trait Div: Mul + Inv {
     /// The division function on the type.
-    ///
-    /// The default implementation is `self.mul(&x.inv())`.
-    fn div(&self, x: &Self) -> Self {
-        self.mul(&x.inv())
+    fn div(&self, rhs: &Self) -> Self {
+        self.mul(&rhs.inv())
     }
 
-    /// The division-assignment function on the type.
-    ///
-    /// The default implementation is `self.mul_mut(&x.inv())`.
-    fn div_mut(&mut self, x: &Self) {
-        self.mul_mut(&x.inv())
+    /// The (left) division-assignment function on the type.
+    fn div_mut(&mut self, rhs: &Self) {
+        self.mul_mut(&rhs.inv())
+    }
+
+    /// The (right) division-assignment function on the type.
+    fn div_rhs_mut(&self, rhs: &mut Self) {
+        rhs.inv_mut();
+        self.mul_rhs_mut(rhs);
     }
 }
 
@@ -588,7 +590,7 @@ macro_rules! derive_div {
             type Output = $x;
 
             fn div(self, rhs: Self) -> Self::Output {
-                $crate::traits::basic::Div::div(self, rhs)
+                xmath::traits::Div::div(self, rhs)
             }
         }
 
@@ -618,7 +620,7 @@ macro_rules! derive_div {
 
         impl std::ops::DivAssign<&$x> for $x {
             fn div_assign(&mut self, rhs: &Self) {
-                $crate::traits::basic::Div::div_mut(self, &rhs);
+                xmath::traits::Div::div_mut(self, &rhs);
             }
         }
 
@@ -755,19 +757,19 @@ where
     ///
     /// ## Safety
     ///
-    /// The caller must ensure `x` is indeed nonzero.
-    unsafe fn try_div_unchecked(&self, x: &Self) -> Self {
-        self.mul(x.try_inv_unchecked().as_ref())
+    /// The caller must ensure the `rhs` is indeed nonzero.
+    unsafe fn try_div_unchecked(&self, rhs: &Self) -> Self {
+        self.mul(rhs.try_inv_unchecked().as_ref())
     }
 
     /// Attempts to divide an element by another. Returns `None` if the second
     /// element is zero.
-    fn try_div(&self, x: &Self) -> Option<Self> {
-        if x.is_zero() {
+    fn try_div(&self, rhs: &Self) -> Option<Self> {
+        if rhs.is_zero() {
             None
         } else {
             // Safety: we just verified the element is nonzero.
-            unsafe { Some(self.try_div_unchecked(x)) }
+            unsafe { Some(self.try_div_unchecked(rhs)) }
         }
     }
 
@@ -775,19 +777,41 @@ where
     ///
     /// ## Safety
     ///
-    /// The caller must ensure `x` is indeed nonzero.
-    unsafe fn try_div_mut_unchecked(&mut self, x: &Self) {
-        self.mul_mut(x.try_inv_unchecked().as_ref());
+    /// The caller must ensure the `rhs` is indeed nonzero.
+    unsafe fn try_div_mut_unchecked(&mut self, rhs: &Self) {
+        self.mul_mut(rhs.try_inv_unchecked().as_ref());
     }
 
     /// Attempts to divide an element by another in place. Does nothing if the
     /// second element is zero. Returns whether a division was performed.
-    fn try_div_mut(&mut self, x: &Self) -> bool {
-        if x.is_zero() {
+    fn try_div_mut(&mut self, rhs: &Self) -> bool {
+        if rhs.is_zero() {
             false
         } else {
             // Safety: we just verified the element is nonzero.
-            unsafe { self.try_div_mut_unchecked(x) };
+            unsafe { self.try_div_mut_unchecked(rhs) };
+            true
+        }
+    }
+
+    /// Divides an element by a nonzero element in place.
+    ///
+    /// ## Safety
+    ///
+    /// The caller must ensure the `rhs` is indeed nonzero.
+    unsafe fn try_div_rhs_mut_unchecked(&self, rhs: &mut Self) {
+        rhs.try_inv_mut_unchecked();
+        self.mul_rhs_mut(rhs);
+    }
+
+    /// Attempts to divide an element by another in place. Does nothing if the
+    /// second element is zero. Returns whether a division was performed.
+    fn try_div_rhs_mut(&self, rhs: &mut Self) -> bool {
+        if rhs.is_zero() {
+            false
+        } else {
+            // Safety: we just verified the element is nonzero.
+            unsafe { self.try_div_rhs_mut_unchecked(rhs) };
             true
         }
     }

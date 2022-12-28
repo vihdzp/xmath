@@ -1,5 +1,5 @@
 use super::Nat;
-use crate::{data::Sign, traits::basic::*};
+use crate::{data::Sign, traits::*};
 
 /// A variable-sized (signed) integer.
 ///
@@ -118,8 +118,61 @@ impl Neg for Int {
         unsafe { Self::new_unchecked(self.abs().clone(), self.sgn().neg()) }
     }
 }
+/*
+unsafe fn add_sign(x: &Nat, xs: Sign, y: &Nat, ys: Sign) -> Int {
+    match xs {
+        Sign::ZERO => Int::new_unchecked(x.clone(), xs),
+        Sign::POS => todo!(),
+        Sign::NEG => todo!(),
+    }
+}
 
-// missing ADD
+impl Add for Int {
+    fn add(&self, rhs: &Self) -> Self {
+        use std::cmp::Ordering::*;
+
+        unsafe {
+            match self.sgn() {
+                Sign::ZERO => rhs.clone(),
+                Sign::POS => match rhs.sgn() {
+                    Sign::ZERO => self.clone(),
+                    Sign::POS => Self::new_unchecked(
+                        self.abs().add(rhs.abs()),
+                        Sign::POS,
+                    ),
+                    Sign::NEG => match self.abs().cmp(rhs.abs()) {
+                        Less => Self::new_unchecked(
+                            rhs.abs().monus(self.abs()),
+                            Sign::NEG,
+                        ),
+                        Equal => Self::zero(),
+                        Greater => Self::new_unchecked(
+                            self.abs().monus(rhs.abs()),
+                            Sign::POS,
+                        ),
+                    },
+                },
+                Sign::NEG => match rhs.sgn() {
+                    Sign::ZERO => self.neg(),
+                    Sign::NEG => Self::new_unchecked(
+                        self.abs().add(rhs.abs()),
+                        Sign::NEG,
+                    ),
+                    Sign::POS => {
+                        if self.abs() >= rhs.abs() {
+                            Self::new_pos(self.abs().monus(rhs.abs()))
+                        } else {
+                            Self::new_unchecked(
+                                rhs.abs().add(self.abs()),
+                                Sign::NEG,
+                            )
+                        }
+                    }
+                },
+            }
+        }
+    }
+}*/
 
 impl Mul for Int {
     fn mul(&self, x: &Self) -> Self {

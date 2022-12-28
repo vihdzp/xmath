@@ -2,8 +2,8 @@
 //! bivariate polynomials [`Poly2`].
 
 use crate::algs::matrix::{madd_gen, mmul_gen};
-use crate::traits::{basic::*, dim::*, matrix::*};
-use crate::{ctuple, tuple};
+use crate::traits::*;
+use crate::{array, array_type};
 use std::cmp::Ordering::*;
 use std::fmt::Write;
 
@@ -540,16 +540,16 @@ impl<T: Ring + ZeroNeOne> MulMonoid for Poly<T> {}
 impl<T: Ring + ZeroNeOne> Ring for Poly<T> {}
 
 impl<T: Zero> List<U1> for Poly<T> {
-    const SIZE: ctuple!(Dim; 1) = tuple!(Dim::Inf);
+    const SIZE: array_type!(Dim; 1) = array!(Dim::Inf);
     type Item = T;
 
-    fn coeff_ref_gen(&self, i: &C1<usize>) -> Option<&Self::Item> {
+    fn coeff_ref_gen(&self, i: &Array1<usize>) -> Option<&Self::Item> {
         self.as_slice().get(i.0)
     }
 
     unsafe fn coeff_set_unchecked_gen(
         &mut self,
-        index: &C1<usize>,
+        index: &Array1<usize>,
         value: Self::Item,
     ) {
         self.set(index.0, value);
@@ -623,18 +623,18 @@ impl<T: Ring> LinearModule for Poly<T> {
 
 impl<C: TypeNum, V: List<C> + Zero> List<Succ<C>> for Poly<V> {
     type Item = V::Item;
-    const SIZE: CPair<Dim, C::Array<Dim>> = CPair(Dim::Inf, V::SIZE);
+    const SIZE: ArrayPair<Dim, C::Array<Dim>> = ArrayPair(Dim::Inf, V::SIZE);
 
     fn coeff_ref_gen(
         &self,
-        index: &CPair<usize, C::Array<usize>>,
+        index: &ArrayPair<usize, C::Array<usize>>,
     ) -> Option<&Self::Item> {
         self.get(index.0)?.coeff_ref_gen(&index.1)
     }
 
     unsafe fn coeff_set_unchecked_gen(
         &mut self,
-        index: &CPair<usize, C::Array<usize>>,
+        index: &ArrayPair<usize, C::Array<usize>>,
         value: Self::Item,
     ) {
         match self.len().cmp(&(index.0 + 1)) {
@@ -778,7 +778,7 @@ impl<T: Ring> MatrixDyn<T> {
 #[macro_export]
 macro_rules! matrix_dyn {
     ($($($x: expr),*);*) => {
-        $crate::data::Poly::new(vec![$($crate::data::Poly::new(vec![$($x),*])),*])
+        xmath::data::Poly::new(vec![$(xmath::data::Poly::new(vec![$($x),*])),*])
     };
 }
 

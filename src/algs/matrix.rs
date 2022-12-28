@@ -1,6 +1,6 @@
 // Implements and tests various matrix algorithms.
 
-use crate::traits::{basic::*, matrix::Matrix};
+use crate::traits::*;
 
 /// Transposes a matrix and writes the output in a new matrix. No size check is
 /// performed.

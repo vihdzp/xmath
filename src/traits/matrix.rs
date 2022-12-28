@@ -13,7 +13,7 @@
 //! Correctly managing these two kinds of lists under the same interface is a
 //! subtle matter. See [`List`] for more details.
 
-use super::{basic::*, dim::*};
+use super::{basic::*, dim::*, SliceLike};
 use std::fmt::Write;
 
 /// An enum for one of two values, a "finite" `usize` value, or an infinite
@@ -149,7 +149,7 @@ pub trait List<C: TypeNum> {
         if is_valid_index_gen::<C, Self>(index) {
             unsafe { self.coeff_set_unchecked_gen(index, value) }
         } else {
-            panic!("the index {:?} is invalid", index.as_ref())
+            panic!("the index {:?} is invalid", index.as_slice())
         }
     }
 
@@ -232,7 +232,7 @@ where
     /// This is the more specific version of this function, contrast with
     /// [`List::coeff_ref_gen`].
     fn coeff_ref(&self, index: usize) -> Option<&Self::Item> {
-        self.coeff_ref_gen(&C1(index))
+        self.coeff_ref_gen(&Array1(index))
     }
 
     /// Returns the value of the entry with a certain coefficient, defaulting to
@@ -241,7 +241,7 @@ where
     /// This is the more specific version of this function, contrast with
     /// [`List::coeff_or_zero_gen`].
     fn coeff_or_zero(&self, index: usize) -> Self::Item {
-        self.coeff_or_zero_gen(&C1(index))
+        self.coeff_or_zero_gen(&Array1(index))
     }
 
     /// Sets the entry with a certain index with a certain value.
@@ -253,7 +253,7 @@ where
     ///
     /// The index must be valid.
     unsafe fn coeff_set_unchecked(&mut self, index: usize, value: Self::Item) {
-        self.coeff_set_unchecked_gen(&C1(index), value);
+        self.coeff_set_unchecked_gen(&Array1(index), value);
     }
 
     /// Sets the entry with a certain index with a certain value.
@@ -266,7 +266,7 @@ where
     /// This function must panic if and only if it is given an invalid
     /// coefficient.
     fn coeff_set(&mut self, index: usize, value: Self::Item) {
-        self.coeff_set_gen(&C1(index), value);
+        self.coeff_set_gen(&Array1(index), value);
     }
 
     /// Returns some number `i`, such that coefficients from `i` onwards are
@@ -290,7 +290,7 @@ where
     }
 
     fn from_fn_lin<F: FnMut(usize) -> Self::Item>(n: usize, mut f: F) -> Self {
-        from_fn_gen(C1(n), |x: &C1<usize>| f(x.0))
+        from_fn_gen(Array1(n), |x: &Array1<usize>| f(x.0))
     }
 }
 
@@ -302,7 +302,7 @@ pub fn is_valid_index_lin<V: LinearModule + ?Sized>(index: usize) -> bool
 where
     V::Item: Ring,
 {
-    is_valid_index_gen::<U1, V>(&C1(index))
+    is_valid_index_gen::<U1, V>(&Array1(index))
 }
 
 /// The preferred order to write the entries of a matrix in. Sometimes allows
@@ -359,7 +359,7 @@ where
     /// This is the more specific version of this function, contrast with
     /// [`List::coeff_ref_gen`].
     fn coeff_ref(&self, row: usize, col: usize) -> Option<&Self::Item> {
-        self.coeff_ref_gen(&C2::new(row, col))
+        self.coeff_ref_gen(&Array2::new2(row, col))
     }
 
     /// Returns the value of the entry with a certain coefficient, defaulting to
@@ -368,7 +368,7 @@ where
     /// This is the more specific version of this function, contrast with
     /// [`List::coeff_or_zero_gen`].
     fn coeff_or_zero(&self, row: usize, col: usize) -> Self::Item {
-        self.coeff_or_zero_gen(&C2::new(row, col))
+        self.coeff_or_zero_gen(&Array2::new2(row, col))
     }
 
     /// Sets the entry with a certain index with a certain value.
@@ -385,7 +385,7 @@ where
         col: usize,
         value: Self::Item,
     ) {
-        self.coeff_set_unchecked_gen(&C2::new(row, col), value);
+        self.coeff_set_unchecked_gen(&Array2::new2(row, col), value);
     }
 
     /// Sets the entry with a certain index with a certain value.
@@ -398,7 +398,7 @@ where
     /// This function must panic if and only if it is given an invalid
     /// coefficient.
     fn coeff_set(&mut self, row: usize, col: usize, value: Self::Item) {
-        self.coeff_set_gen(&C2::new(row, col), value);
+        self.coeff_set_gen(&Array2::new2(row, col), value);
     }
 
     /// The support of a certain column, in the sense of
@@ -491,17 +491,18 @@ where
         let mut res = Self::zero();
 
         if Self::DIR.contains(Direction::Row) {
-            for CPair(col, C1(row)) in TupleIter::new(min::<U2>(
+            for ArrayPair(col, Array1(row)) in TupleIter::new(min::<U2>(
                 &Self::SIZE.swap(),
-                &C2::new(width, height),
+                &Array2::new2(width, height),
             )) {
                 println!("{},{}", row, col);
                 res.coeff_set(row, col, f(row, col));
             }
         } else {
-            for CPair(row, C1(col)) in
-                TupleIter::new(min::<U2>(&Self::SIZE, &C2::new(height, width)))
-            {
+            for ArrayPair(row, Array1(col)) in TupleIter::new(min::<U2>(
+                &Self::SIZE,
+                &Array2::new2(height, width),
+            )) {
                 res.coeff_set(row, col, f(row, col));
             }
         }
@@ -518,7 +519,7 @@ pub fn is_valid_index<M: Matrix>(i: usize, j: usize) -> bool
 where
     M::Item: Ring,
 {
-    is_valid_index_gen::<U2, M>(&C2::new(i, j))
+    is_valid_index_gen::<U2, M>(&Array2::new2(i, j))
 }
 
 #[cfg(test)]

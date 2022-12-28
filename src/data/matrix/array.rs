@@ -4,7 +4,8 @@
 use crate::{
     algs::matrix::{madd_gen, mmul_gen},
     data::aliases::Transpose,
-    traits::{basic::*, dim::*, matrix::*},
+    traits::*,
+    SliceIndex,
 };
 
 /// A statically-sized array of elements of a single type.
@@ -13,37 +14,27 @@ use crate::{
 ///
 /// This stores a single `[T; N]` field. The layout is guaranteed to be the
 /// same, and the allowed values are equal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, SliceIndex, ArrayFromIter)]
 #[repr(transparent)]
 pub struct Array<T, const N: usize>(pub [T; N]);
 
-/// Returns a reference to the underlying array.
-impl<T, const N: usize> AsRef<[T; N]> for Array<T, N> {
-    fn as_ref(&self) -> &[T; N] {
+impl<T, const N: usize> SliceLike for Array<T, N> {
+    type Item = T;
+
+    fn as_slice(&self) -> &[Self::Item] {
         &self.0
     }
-}
 
-/// Returns a mutable reference to the underlying array.
-impl<T, const N: usize> AsMut<[T; N]> for Array<T, N> {
-    fn as_mut(&mut self) -> &mut [T; N] {
+    fn as_mut_slice(&mut self) -> &mut [Self::Item] {
         &mut self.0
     }
 }
 
-/// Indexes the underlying array.
-impl<T, const N: usize> std::ops::Index<usize> for Array<T, N> {
-    type Output = T;
+impl<T, const N: usize> ArrayLike for Array<T, N> {
+    const LEN: usize = N;
 
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.as_ref()[index]
-    }
-}
-
-/// Mutably indexes the underlying array.
-impl<T, const N: usize> std::ops::IndexMut<usize> for Array<T, N> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.as_mut()[index]
+    fn from_iter_mut<I: Iterator<Item = Self::Item>>(iter: &mut I) -> Self {
+        Self::from_fn(|_| iter.next().unwrap())
     }
 }
 
@@ -100,6 +91,14 @@ impl<T, const N: usize> Array<T, N> {
     /// Initializes the array `[f(0), f(1), ..., f(N - 1)]`.
     pub fn from_fn<F: FnMut(usize) -> T>(f: F) -> Self {
         Self::new(std::array::from_fn(f))
+    }
+
+    pub fn from_iter_zero<I: IntoIterator<Item = T>>(iter: I) -> Self
+    where
+        T: Zero,
+    {
+        let mut iter = iter.into_iter();
+        Self(std::array::from_fn(|_| iter.next().unwrap_or_else(T::zero)))
     }
 
     /// Performs a pairwise operation on two arrays.
@@ -238,15 +237,15 @@ impl<T: Ring, const N: usize> Ring for Array<T, N> {}
 /// Arrays are a one-dimensional list.
 impl<T, const N: usize> List<U1> for Array<T, N> {
     type Item = T;
-    const SIZE: C1<Dim> = C1(Dim::Fin(N));
+    const SIZE: Array1<Dim> = Array1(Dim::Fin(N));
 
-    fn coeff_ref_gen(&self, index: &C1<usize>) -> Option<&Self::Item> {
+    fn coeff_ref_gen(&self, index: &Array1<usize>) -> Option<&Self::Item> {
         self.get(index.0)
     }
 
     unsafe fn coeff_set_unchecked_gen(
         &mut self,
-        index: &C1<usize>,
+        index: &Array1<usize>,
         value: Self::Item,
     ) {
         *self.as_mut().get_unchecked_mut(index.0) = value;
@@ -275,13 +274,6 @@ impl<T: Ring, const N: usize> Module<U1> for Array<T, N> {
     }
 }
 
-impl<T: Ring, const N: usize> FromIterator<T> for Array<T, N> {
-    fn from_iter<J: IntoIterator<Item = T>>(iter: J) -> Self {
-        let mut iter = iter.into_iter();
-        Self(std::array::from_fn(|_| iter.next().unwrap_or_else(T::zero)))
-    }
-}
-
 impl<T, const N: usize> LinearModule for Array<T, N>
 where
     T: Ring,
@@ -293,11 +285,11 @@ where
 
 impl<C: TypeNum, V: List<C>, const N: usize> List<Succ<C>> for Array<V, N> {
     type Item = V::Item;
-    const SIZE: CPair<Dim, C::Array<Dim>> = CPair(Dim::Fin(N), V::SIZE);
+    const SIZE: ArrayPair<Dim, C::Array<Dim>> = ArrayPair(Dim::Fin(N), V::SIZE);
 
     fn coeff_ref_gen(
         &self,
-        index: &CPair<usize, <C as TypeNum>::Array<usize>>,
+        index: &ArrayPair<usize, <C as TypeNum>::Array<usize>>,
     ) -> Option<&Self::Item> {
         self[index.0].coeff_ref_gen(&index.1)
     }
@@ -457,7 +449,7 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
         transmute_check!(M, N, K, L);
 
         // Safety: we've performed the size check.
-        unsafe { &*(self as *const Self).cast() }
+        unsafe { crate::transmute_ref(self) }
     }
 
     /// Transmutes a mutable reference to a matrix as a mutable refrence to
@@ -473,7 +465,7 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
         transmute_check!(M, N, K, L);
 
         // Safety: we've performed the size check.
-        unsafe { &mut *(self as *mut Self).cast() }
+        unsafe { crate::transmute_mut(self) }
     }
 }
 
@@ -529,6 +521,6 @@ impl<T> ColVec<T> {
 #[macro_export]
 macro_rules! matrix_mn {
     ($($($x: expr),*);*) => {
-        $crate::data::Array([$($crate::data::Array([$($x),*])),*])
+        xmath::data::Array([$(xmath::data::Array([$($x),*])),*])
     };
 }
