@@ -25,12 +25,52 @@
 //! addition can overflow. We make a sole exception for running out of memory,
 //! with the understanding that it should only happen in extreme cases.
 
+extern crate self as xmath_traits;
+
 mod basic;
 mod dim;
 mod layout;
-mod matrix;
+mod nonzero;
 
 pub use basic::*;
 pub use dim::*;
 pub use layout::*;
-pub use matrix::*;
+pub use nonzero::*;
+
+use std::num::Wrapping;
+
+/// The ring of integers modulo 2<sup>8</sup>.
+pub type Wu8 = Wrapping<u8>;
+
+/// The ring of integers modulo 2<sup>16</sup>.
+pub type Wu16 = Wrapping<u16>;
+
+/// The ring of integers modulo 2<sup>32</sup>.
+pub type Wu32 = Wrapping<u32>;
+
+/// The ring of integers modulo 2<sup>64</sup>.
+pub type Wu64 = Wrapping<u64>;
+
+/// The ring of integers modulo 2<sup>128</sup>.
+pub type Wu128 = Wrapping<u128>;
+
+/// The ring of integers modulo the pointer size.
+pub type Wusize = Wrapping<usize>;
+
+/// The ring of integers modulo 2<sup>8</sup>.
+pub type Wi8 = Wrapping<i8>;
+
+/// The ring of integers modulo 2<sup>16</sup>.
+pub type Wi16 = Wrapping<i16>;
+
+/// The ring of integers modulo 2<sup>32</sup>.
+pub type Wi32 = Wrapping<i32>;
+
+/// The ring of integers modulo 2<sup>64</sup>.
+pub type Wi64 = Wrapping<i64>;
+
+/// The ring of integers modulo 2<sup>128</sup>.
+pub type Wi128 = Wrapping<i128>;
+
+/// The ring of integers modulo the pointer size.
+pub type Wisize = Wrapping<isize>;

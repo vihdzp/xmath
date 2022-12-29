@@ -1,13 +1,18 @@
 //! Contains the definitions for basic matrix types, including [`Array`] and
 //! [`Poly`].
 
+mod algs;
 mod array;
 mod poly;
+mod traits;
+mod transpose;
 
 pub use array::*;
 pub use poly::*;
+pub use transpose::*;
 
-use crate::traits::{*};
+use crate::traits::*;
+use xmath_traits::*;
 
 /// The empty list of a given type. This is a unit type.
 ///
@@ -103,18 +108,11 @@ impl<T, C: TypeNum> List<C> for Empty<T> {
     type Item = T;
     const SIZE: C::Array<Dim> = C::Array::<Dim>::ZERO;
 
-    fn coeff_ref_gen(
-        &self,
-        _: &<C as TypeNum>::Array<usize>,
-    ) -> Option<&Self::Item> {
+    fn coeff_ref_gen(&self, _: &<C as TypeNum>::Array<usize>) -> Option<&Self::Item> {
         None
     }
 
-    unsafe fn coeff_set_unchecked_gen(
-        &mut self,
-        _: &<C as TypeNum>::Array<usize>,
-        _: Self::Item,
-    ) {
+    unsafe fn coeff_set_unchecked_gen(&mut self, _: &<C as TypeNum>::Array<usize>, _: Self::Item) {
         unreachable!()
     }
 
@@ -162,15 +160,11 @@ impl<T: Ring> Matrix for Empty<T> {
         0
     }
 
-    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        _: J,
-    ) -> Self {
+    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(_: J) -> Self {
         Self::new()
     }
 
-    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        _: J,
-    ) -> Self {
+    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(_: J) -> Self {
         Self::new()
     }
 }

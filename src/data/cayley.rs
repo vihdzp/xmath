@@ -1,4 +1,5 @@
-use crate::traits::*;
+
+use xmath_traits::*;
 
 /// A trait for a type resulting from a repeated
 /// [Cayley–Dickson construction](https://en.wikipedia.org/wiki/Cayley_Dickson_construction).
@@ -16,16 +17,7 @@ pub trait CayleyTuple: ArrayLike {
 /// A type endowed with a trivial implementation of [`CayleyTuple`].
 #[repr(C)]
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Transparent,
-    ArrayFromIter,
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Transparent, ArrayFromIter,
 )]
 pub struct Cayley1<T>(pub T);
 

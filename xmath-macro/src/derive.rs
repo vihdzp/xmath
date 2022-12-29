@@ -5,27 +5,27 @@ use syn::{DeriveInput, Ident};
 /// Contains the code for the [`crate::Transparent`] derive macro.
 pub fn transparent(name: Ident) -> TokenStream {
     quote! {
-        impl<T> xmath::traits::SliceLike for #name<T> {
+        impl<T> xmath_traits::SliceLike for #name<T> {
             type Item = T;
 
             fn as_slice(&self) -> &[Self::Item] {
-                xmath::traits::ArrayLike::as_ref(self)
+                xmath_traits::ArrayLike::as_ref(self)
             }
 
             fn as_mut_slice(&mut self) -> &mut [Self::Item] {
-                xmath::traits::ArrayLike::as_mut(self)
+                xmath_traits::ArrayLike::as_mut(self)
             }
         }
 
-        impl<T> xmath::traits::ArrayLike for #name<T> {
+        impl<T> xmath_traits::ArrayLike for #name<T> {
             const LEN: usize = 1;
 
             fn from_iter_mut<I: Iterator<Item = T>>(iter: &mut I) -> Self {
-                xmath::traits::Transparent::from_iter_mut_def(iter)
+                xmath_traits::Transparent::from_iter_mut_def(iter)
             }
         }
 
-        impl<T> xmath::traits::Transparent for #name<T> {}
+        impl<T> xmath_traits::Transparent for #name<T> {}
     }
     .into()
 }
@@ -37,16 +37,16 @@ pub fn slice_index(input: DeriveInput) -> TokenStream {
 
     quote! {
         impl #impl_gens std::ops::Index<usize> for #name #ty_gens #where_clause {
-            type Output = <Self as xmath::traits::SliceLike>::Item;
+            type Output = <Self as xmath_traits::SliceLike>::Item;
 
             fn index(&self, index: usize) -> &Self::Output {
-                xmath::traits::SliceLike::index(self, index)
+                xmath_traits::SliceLike::index(self, index)
             }
         }
         
         impl #impl_gens std::ops::IndexMut<usize> for #name #ty_gens #where_clause {
             fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-                xmath::traits::SliceLike::index_mut(self, index)
+                xmath_traits::SliceLike::index_mut(self, index)
             }
         }
     }
@@ -60,9 +60,9 @@ pub fn array_from_iter(input: DeriveInput) -> TokenStream {
     let (impl_gens, ty_gens, where_clause) = input.generics.split_for_impl();
 
     quote! {
-        impl #impl_gens FromIterator<<Self as xmath::traits::SliceLike>::Item> for #name #ty_gens #where_clause {
-            fn from_iter<I: IntoIterator<Item = <Self as xmath::traits::SliceLike>::Item>>(iter: I) -> Self {
-                xmath::traits::ArrayLike::from_iter(iter)
+        impl #impl_gens FromIterator<<Self as xmath_traits::SliceLike>::Item> for #name #ty_gens #where_clause {
+            fn from_iter<I: IntoIterator<Item = <Self as xmath_traits::SliceLike>::Item>>(iter: I) -> Self {
+                xmath_traits::ArrayLike::from_iter(iter)
             }
         }
     }

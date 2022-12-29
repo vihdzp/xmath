@@ -1,6 +1,7 @@
 // Implements and tests various matrix algorithms.
 
 use crate::traits::*;
+use xmath_traits::*;
 
 /// Transposes a matrix and writes the output in a new matrix. No size check is
 /// performed.
@@ -77,14 +78,7 @@ where
 ///
 /// The inputs are imagined as having zeros in all nonexistent entries, and
 /// the output is trimmed to fit.
-pub fn madd_trim<
-    M: Matrix,
-    N: Matrix<Item = M::Item>,
-    K: Matrix<Item = M::Item>,
->(
-    m: &M,
-    n: &N,
-) -> K
+pub fn madd_trim<M: Matrix, N: Matrix<Item = M::Item>, K: Matrix<Item = M::Item>>(m: &M, n: &N) -> K
 where
     M::Item: Ring,
 {
@@ -109,14 +103,7 @@ where
 /// ## Panics
 ///
 /// This function will panic if the sizes of `M`, `N`, `K` are not equal.
-pub fn madd_gen<
-    M: Matrix,
-    N: Matrix<Item = M::Item>,
-    K: Matrix<Item = M::Item>,
->(
-    m: &M,
-    n: &N,
-) -> K
+pub fn madd_gen<M: Matrix, N: Matrix<Item = M::Item>, K: Matrix<Item = M::Item>>(m: &M, n: &N) -> K
 where
     M::Item: Ring,
 {
@@ -137,14 +124,7 @@ where
 ///
 /// The inputs are imagined as having zeros in all nonexistent entries, and the
 /// output is trimmed to fit.
-pub fn mmul_trim<
-    M: Matrix,
-    N: Matrix<Item = M::Item>,
-    K: Matrix<Item = M::Item>,
->(
-    m: &M,
-    n: &N,
-) -> K
+pub fn mmul_trim<M: Matrix, N: Matrix<Item = M::Item>, K: Matrix<Item = M::Item>>(m: &M, n: &N) -> K
 where
     M::Item: Ring,
 {
@@ -173,14 +153,7 @@ where
 /// - The height of `M` equals the height of `K`.
 /// - The width of `N` equals the width of `K`.
 /// - The width of `M` equals the height of `N`.
-pub fn mmul_gen<
-    M: Matrix,
-    N: Matrix<Item = M::Item>,
-    K: Matrix<Item = M::Item>,
->(
-    m: &M,
-    n: &N,
-) -> K
+pub fn mmul_gen<M: Matrix, N: Matrix<Item = M::Item>, K: Matrix<Item = M::Item>>(m: &M, n: &N) -> K
 where
     M::Item: Ring,
 {

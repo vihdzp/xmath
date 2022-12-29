@@ -1,6 +1,6 @@
 //! Traits relating to the layout of types.
 
-use crate::{transmute_gen, transmute_mut, transmute_ref};
+use xmath_core::{transmute_gen, transmute_mut, transmute_ref};
 
 /// A trait for a type with an underlying slice.
 ///
@@ -115,28 +115,19 @@ pub trait ArrayLike: SliceLike + FromIterator<Self::Item> {
 
     /// Performs a compile-time check and transmutes a mutable reference to an
     /// array with a fixed size into a mutable reference to `self`.
-    fn from_const_mut_slice<const N: usize>(
-        value: &mut [Self::Item; N],
-    ) -> &mut Self {
+    fn from_const_mut_slice<const N: usize>(value: &mut [Self::Item; N]) -> &mut Self {
         assert_eq!(Self::LEN, N);
         unsafe { transmute_mut(value) }
     }
 
     /// A default [`AsRef`] implementation.
     fn as_ref(&self) -> &[Self::Item] {
-        unsafe {
-            std::slice::from_raw_parts((self as *const Self).cast(), Self::LEN)
-        }
+        unsafe { std::slice::from_raw_parts((self as *const Self).cast(), Self::LEN) }
     }
 
     /// A default [`AsMut`] implementation.
     fn as_mut(&mut self) -> &mut [Self::Item] {
-        unsafe {
-            std::slice::from_raw_parts_mut(
-                (self as *mut Self).cast(),
-                Self::LEN,
-            )
-        }
+        unsafe { std::slice::from_raw_parts_mut((self as *mut Self).cast(), Self::LEN) }
     }
 }
 
@@ -145,7 +136,7 @@ pub trait ArrayLike: SliceLike + FromIterator<Self::Item> {
 pub trait Transparent: ArrayLike {
     /// Transmutes an element of the type into the inner type.
     fn to_single(self) -> Self::Item {
-        crate::from_array(Self::to_array(self))
+        xmath_core::from_array(Self::to_array(self))
     }
 
     /// Transmutes the inner value into the type.

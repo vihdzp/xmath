@@ -15,51 +15,7 @@
 
 use super::*;
 use std::fmt::Write;
-
-/// An enum for one of two values, a "finite" `usize` value, or an infinite
-/// value. This is used to measure the size of a [`List`].
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Dim {
-    /// A finite value, stored as a `usize`.
-    Fin(usize),
-
-    /// An infinite value.
-    Inf,
-}
-
-impl std::fmt::Display for Dim {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            Dim::Fin(x) => write!(f, "{}", x),
-            Dim::Inf => f.write_char('∞'),
-        }
-    }
-}
-
-impl Dim {
-    /// Returns whether `x < self`.
-    pub const fn cmp_usize(self, x: usize) -> bool {
-        match self {
-            Dim::Fin(y) => x < y,
-            Dim::Inf => true,
-        }
-    }
-
-    /// The minimum of a `Dim` and a `usize` value.
-    pub const fn min(self, x: usize) -> usize {
-        match self {
-            Dim::Fin(y) => {
-                if x < y {
-                    x
-                } else {
-                    y
-                }
-            }
-            Dim::Inf => x,
-        }
-    }
-}
+use xmath_traits::*;
 
 /// Represents a structure with a notion of coordinates or coefficients.
 ///
@@ -130,11 +86,7 @@ pub trait List<C: TypeNum> {
     /// ## Safety
     ///
     /// The index must be valid.
-    unsafe fn coeff_set_unchecked_gen(
-        &mut self,
-        index: &C::Array<usize>,
-        value: Self::Item,
-    );
+    unsafe fn coeff_set_unchecked_gen(&mut self, index: &C::Array<usize>, value: Self::Item);
 
     /// Sets the entry with a certain index with a certain value.
     ///
@@ -164,20 +116,12 @@ pub trait List<C: TypeNum> {
 ///
 /// This is the more general version of this function, contrast with
 /// [`is_valid_index_lin`] and [`is_valid_index`].
-pub fn is_valid_index_gen<C: TypeNum, L: List<C> + ?Sized>(
-    index: &C::Array<usize>,
-) -> bool {
-    super::dim::pairwise::<C, _, _, _>(&L::SIZE, index, |x: &Dim, y: &usize| {
-        x.cmp_usize(*y)
-    })
+pub fn is_valid_index_gen<C: TypeNum, L: List<C> + ?Sized>(index: &C::Array<usize>) -> bool {
+    xmath_traits::pairwise::<C, _, _, _>(&L::SIZE, index, |x: &Dim, y: &usize| x.cmp_usize(*y))
 }
 
 /// A default implementation for `from_fn` on lists.  
-pub fn from_fn_gen<
-    C: TypeNum,
-    L: List<C> + Zero,
-    F: FnMut(&C::Array<usize>) -> L::Item,
->(
+pub fn from_fn_gen<C: TypeNum, L: List<C> + Zero, F: FnMut(&C::Array<usize>) -> L::Item>(
     limit: C::Array<usize>,
     mut f: F,
 ) -> L
@@ -379,12 +323,7 @@ where
     /// ## Safety
     ///
     /// The index must be valid.
-    unsafe fn coeff_set_unchecked(
-        &mut self,
-        row: usize,
-        col: usize,
-        value: Self::Item,
-    ) {
+    unsafe fn coeff_set_unchecked(&mut self, row: usize, col: usize, value: Self::Item) {
         self.coeff_set_unchecked_gen(&Array2::new2(row, col), value);
     }
 
@@ -423,9 +362,7 @@ where
     ///
     /// You can use [`Matrix::DIR`] to figure out whether
     /// [`Matrix::collect_row`] or [`Matrix::collect_col`] should be used.
-    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        iter: J,
-    ) -> Self {
+    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(iter: J) -> Self {
         let mut res = Self::zero();
 
         for (row, iter) in iter.into_iter().enumerate() {
@@ -455,9 +392,7 @@ where
     ///
     /// You can use [`Matrix::DIR`] to figure out whether
     /// [`Matrix::collect_row`] or [`Matrix::collect_col`] should be used.
-    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        iter: J,
-    ) -> Self {
+    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(iter: J) -> Self {
         let mut res = Self::zero();
 
         for (col, iter) in iter.into_iter().enumerate() {
@@ -491,18 +426,16 @@ where
         let mut res = Self::zero();
 
         if Self::DIR.contains(Direction::Row) {
-            for ArrayPair(col, Array1(row)) in TupleIter::new(min::<U2>(
-                &Self::SIZE.swap(),
-                &Array2::new2(width, height),
-            )) {
+            for ArrayPair(col, Array1(row)) in
+                TupleIter::new(min::<U2>(&Self::SIZE.swap(), &Array2::new2(width, height)))
+            {
                 println!("{},{}", row, col);
                 res.coeff_set(row, col, f(row, col));
             }
         } else {
-            for ArrayPair(row, Array1(col)) in TupleIter::new(min::<U2>(
-                &Self::SIZE,
-                &Array2::new2(height, width),
-            )) {
+            for ArrayPair(row, Array1(col)) in
+                TupleIter::new(min::<U2>(&Self::SIZE, &Array2::new2(height, width)))
+            {
                 res.coeff_set(row, col, f(row, col));
             }
         }
@@ -524,9 +457,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use xmath_traits::Wu8;
+
     use super::Matrix;
     use crate::{
-        data::{MatrixDyn, MatrixMN, Wu8},
+        data::{MatrixDyn, MatrixMN},
         matrix_dyn, matrix_mn,
     };
     use std::num::Wrapping;
@@ -547,8 +482,7 @@ mod tests {
     /// Tests `from_fn` when called with a larger rectangle.
     #[test]
     fn from_fn_2() {
-        let m1: MatrixMN<Wu8, 2, 2> =
-            Matrix::from_fn(3, 3, |i, j| Wrapping((2 * i + j + 1) as u8));
+        let m1: MatrixMN<Wu8, 2, 2> = Matrix::from_fn(3, 3, |i, j| Wrapping((2 * i + j + 1) as u8));
 
         let m2: MatrixMN<Wu8, 2, 2> = matrix_mn!(
             Wrapping(1), Wrapping(2);
@@ -561,8 +495,7 @@ mod tests {
     /// Tests `from_fn` when called on a dynamically-sized matrix.
     #[test]
     fn from_fn_3() {
-        let m1: MatrixDyn<Wu8> =
-            Matrix::from_fn(2, 2, |i, j| Wrapping((2 * i + j + 1) as u8));
+        let m1: MatrixDyn<Wu8> = Matrix::from_fn(2, 2, |i, j| Wrapping((2 * i + j + 1) as u8));
 
         let m2: MatrixDyn<Wu8> = matrix_dyn!(
             Wrapping(1), Wrapping(2);

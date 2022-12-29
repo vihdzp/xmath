@@ -1,11 +1,12 @@
 //! Implements the type of univariate polynomials [`Poly`] and the type of
 //! bivariate polynomials [`Poly2`].
 
-use crate::algs::matrix::{madd_gen, mmul_gen};
+use crate::algs::{madd_gen, mmul_gen};
 use crate::traits::*;
-use crate::{array, array_type};
 use std::cmp::Ordering::*;
 use std::fmt::Write;
+use xmath_traits::*;
+use xmath_traits::{array, array_type};
 
 /// A polynomial whose entries belong to a type.
 ///
@@ -179,11 +180,7 @@ impl<T: Zero> Poly<T> {
         res.into()
     }
 
-    pub fn pairwise_mut<U: Zero, F: FnMut(&mut T, &U)>(
-        &mut self,
-        rhs: &Poly<U>,
-        mut f: F,
-    ) {
+    pub fn pairwise_mut<U: Zero, F: FnMut(&mut T, &U)>(&mut self, rhs: &Poly<U>, mut f: F) {
         unsafe {
             if self.len() < rhs.len() {
                 self.as_vec_mut().resize_with(rhs.len(), T::zero);
@@ -208,11 +205,7 @@ impl<T: Zero> Poly<T> {
     }
 
     /// Formats a polynomial, with a specified variable name. Defaults to `x`.
-    pub fn fmt_with(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-        c: char,
-    ) -> std::fmt::Result
+    pub fn fmt_with(&self, f: &mut std::fmt::Formatter<'_>, c: char) -> std::fmt::Result
     where
         T: std::fmt::Display,
     {
@@ -386,12 +379,7 @@ impl<T: Zero + Clone> Poly<T> {
     ///
     /// For this to give a valid polynomial we must have `g(x) == 0` only when
     /// `x == 0`.
-    unsafe fn add_sub<F: Fn(&T, &T) -> T, G: Fn(&T) -> T>(
-        &self,
-        x: &Self,
-        f: F,
-        g: G,
-    ) -> Self {
+    unsafe fn add_sub<F: Fn(&T, &T) -> T, G: Fn(&T) -> T>(&self, x: &Self, f: F, g: G) -> Self {
         match self.len().cmp(&x.len()) {
             Less => {
                 let mut res = Vec::with_capacity(x.len());
@@ -437,12 +425,7 @@ impl<T: Zero + Clone> Poly<T> {
     ///
     /// For this to give a valid polynomial, we must have `g(x) == 0` only when
     /// `x == 0`.
-    unsafe fn add_sub_mut<F: Fn(&mut T, &T), G: Fn(&T) -> T>(
-        &mut self,
-        x: &Self,
-        f: F,
-        g: G,
-    ) {
+    unsafe fn add_sub_mut<F: Fn(&mut T, &T), G: Fn(&T) -> T>(&mut self, x: &Self, f: F, g: G) {
         match self.len().cmp(&x.len()) {
             Less => {
                 for i in 0..self.len() {
@@ -547,11 +530,7 @@ impl<T: Zero> List<U1> for Poly<T> {
         self.as_slice().get(i.0)
     }
 
-    unsafe fn coeff_set_unchecked_gen(
-        &mut self,
-        index: &Array1<usize>,
-        value: Self::Item,
-    ) {
+    unsafe fn coeff_set_unchecked_gen(&mut self, index: &Array1<usize>, value: Self::Item) {
         self.set(index.0, value);
     }
 
@@ -625,10 +604,7 @@ impl<C: TypeNum, V: List<C> + Zero> List<Succ<C>> for Poly<V> {
     type Item = V::Item;
     const SIZE: ArrayPair<Dim, C::Array<Dim>> = ArrayPair(Dim::Inf, V::SIZE);
 
-    fn coeff_ref_gen(
-        &self,
-        index: &ArrayPair<usize, C::Array<usize>>,
-    ) -> Option<&Self::Item> {
+    fn coeff_ref_gen(&self, index: &ArrayPair<usize, C::Array<usize>>) -> Option<&Self::Item> {
         self.get(index.0)?.coeff_ref_gen(&index.1)
     }
 
@@ -639,8 +615,7 @@ impl<C: TypeNum, V: List<C> + Zero> List<Succ<C>> for Poly<V> {
     ) {
         match self.len().cmp(&(index.0 + 1)) {
             // Safety: the leading coefficient isn't modified.
-            Greater => self.as_slice_mut()[index.0]
-                .coeff_set_unchecked_gen(&index.1, value),
+            Greater => self.as_slice_mut()[index.0].coeff_set_unchecked_gen(&index.1, value),
 
             // Safety: we trim the vector at the end.
             Equal => {
@@ -714,9 +689,7 @@ where
             .unwrap_or_default()
     }
 
-    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        iter: J,
-    ) -> Self {
+    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(iter: J) -> Self {
         let mut res = Vec::new();
 
         for iter in iter {
@@ -726,9 +699,7 @@ where
         res.into()
     }
 
-    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        iter: J,
-    ) -> Self {
+    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(iter: J) -> Self {
         let mut res = Self::zero();
 
         for (col, iter) in iter.enumerate() {
@@ -809,12 +780,7 @@ impl<T: Zero> Poly2<T> {
 
     /// Formats a polynomial, with two specified variable names. Defaults to `x`
     /// and `y`.
-    fn fmt_with(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-        c1: char,
-        c2: char,
-    ) -> std::fmt::Result
+    fn fmt_with(&self, f: &mut std::fmt::Formatter<'_>, c1: char, c2: char) -> std::fmt::Result
     where
         T: std::fmt::Display,
     {
@@ -1061,8 +1027,9 @@ impl<T: Ring + ZeroNeOne> Ring for Poly2<T> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{algs::upow, data::Wu8};
+    use crate::algs::upow;
     use std::num::Wrapping;
+    use xmath_traits::Wu8;
 
     #[test]
     fn add() {

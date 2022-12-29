@@ -26,54 +26,59 @@
 //! **This crate uses unsafe code. Erroneous implementations of the traits in
 //! the library can cause undefined behavior.**
 //!
-//! See the [`traits`] module for more information.
+//! See the [`xmath_traits`] crate for more information.
+//!
+//! ## Crates
+//!
+//! For internal organization, the χ-math codebase is split up into various
+//! crates. For the moment being, these are subject to sudden and radical
+//! change. The current hierarchy from top to down is as follows:
+//!
+//! - [`xmath`]: the main crate.
+//! - [`num_bigint`]: a fork of [`num_bigint`](https://docs.rs/num-bigint/latest/num_bigint/index.html#)
+//!    designed to interface better with the χ-math code.
+//! - [`xmath_matrix`]: code for arrays and matrices.
+//! - [`xmath_traits`]: the basic χ-math traits.
+//! - [`xmath_macro`]: for any procedural macros.
+//! - [`xmath_core`]: miscellaneous code that's used by the other crates.
 //!
 //! ## Why the name?
 //!
-//! It looked cool.
+//! The letter χ shares its first phoneme with the x from exact. Besides, it
+//! really just looked cool.
 
 extern crate self as xmath;
 
 pub mod algs;
 pub mod data;
-pub mod traits;
 
 pub use xmath_macro::*;
+use xmath_traits::{IntegralDomain, Mul, MulMonoid, NonZeroWrapper, One, Zero, ZeroNeOne};
 
-/// Transmutes a reference `&T` into a reference `&U`.
-///
-/// ## Safety
-///
-/// Both types must have the same layout.
-unsafe fn transmute_ref<T: ?Sized, U>(x: &T) -> &U {
-    &*(x as *const T).cast()
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct NonZero<T>(T);
+
+impl<T> NonZero<T> {
+    pub const unsafe fn new_unchecked(x: T) -> Self {
+        Self(x)
+    }
 }
 
-/// Transmutes a mutable reference `&mut T` into a mutable reference `&mut U`.
-///
-/// ## Safety
-///
-/// Both types must have the same layout.
-unsafe fn transmute_mut<T: ?Sized, U>(x: &mut T) -> &mut U {
-    &mut *(x as *mut T).cast()
+impl<T: Zero> NonZeroWrapper for NonZero<T> {
+    type Inner = T;
 }
 
-/// A workaround for transmuting a generic type into another.
-///
-/// Borrowed from https://github.com/rust-lang/rust/issues/61956.
-///
-/// ## Safety
-///
-/// All the same safety considerations for [`std::mem::transmute`] still apply.
-unsafe fn transmute_gen<T, U>(x: T) -> U {
-    (*transmute_ref::<_, std::mem::MaybeUninit<U>>(
-        &std::mem::MaybeUninit::new(x),
-    ))
-    .assume_init_read()
+impl<T: IntegralDomain> Mul for NonZero<T> {
+    fn mul(&self, rhs: &Self) -> Self {
+        todo!()
+    }
 }
 
-/// Transmutes `[T; 1]` into `T`.
-fn from_array<T>(x: [T; 1]) -> T {
-    // Safety: both types have the same layout.
-    unsafe { crate::transmute_gen(x) }
+impl<T: ZeroNeOne> One for NonZero<T> {
+    fn one() -> Self {
+        todo!()
+    }
 }
+
+impl<T: ZeroNeOne + IntegralDomain> MulMonoid for NonZero<T> {}

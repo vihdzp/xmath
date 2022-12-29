@@ -6,5 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-xmath-macro = { path = "./xmath-macro" }
+num-bigint = { path = "./num-bigint" }
+num-traits = "0.2.15"
 xmath-core = { path = "./xmath-core" }
+xmath-macro = { path = "./xmath-macro" }
+xmath-matrix = { path = "./xmath-matrix" }
+xmath-traits = { path = "./xmath-traits" }

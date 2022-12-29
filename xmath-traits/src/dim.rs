@@ -3,9 +3,56 @@
 //! This allows us to work with lists with a compile-time number of coordinates
 //! (although almost always we work with 1 or 2 coordinates).
 
-use super::{matrix::Dim, ArrayLike, One, SliceLike, Zero};
-pub use crate::{ArrayFromIter, Transparent};
+use std::fmt::Write;
+
 pub use xmath_core::{Succ, U1};
+pub use xmath_macro::{ArrayFromIter, Transparent};
+use xmath_traits::*;
+
+/// An enum for one of two values, a "finite" `usize` value, or an infinite
+/// value. This is used to measure the size of a [`List`].
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Dim {
+    /// A finite value, stored as a `usize`.
+    Fin(usize),
+
+    /// An infinite value.
+    Inf,
+}
+
+impl std::fmt::Display for Dim {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Dim::Fin(x) => write!(f, "{}", x),
+            Dim::Inf => f.write_char('∞'),
+        }
+    }
+}
+
+impl Dim {
+    /// Returns whether `x < self`.
+    pub const fn cmp_usize(self, x: usize) -> bool {
+        match self {
+            Dim::Fin(y) => x < y,
+            Dim::Inf => true,
+        }
+    }
+
+    /// The minimum of a `Dim` and a `usize` value.
+    pub const fn min(self, x: usize) -> usize {
+        match self {
+            Dim::Fin(y) => {
+                if x < y {
+                    x
+                } else {
+                    y
+                }
+            }
+            Dim::Inf => x,
+        }
+    }
+}
 
 /// The array type associated to the type-level integer [`U1`].
 ///
@@ -13,16 +60,7 @@ pub use xmath_core::{Succ, U1};
 /// [`Array<1>`](crate::data::Array) instead.
 #[repr(transparent)]
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Transparent,
-    ArrayFromIter,
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Transparent, ArrayFromIter,
 )]
 pub struct Array1<T>(pub T);
 
@@ -169,8 +207,7 @@ impl<T: ArrayLike> FromIterator<T::Item> for ArrayPair<T::Item, T> {
     }
 }
 
-impl<T: ArrayTuple> ArrayTuple for ArrayPair<T::Item, T> where T::Item: ConstZero
-{}
+impl<T: ArrayTuple> ArrayTuple for ArrayPair<T::Item, T> where T::Item: ConstZero {}
 
 /// The zero element is the tuple all of whose entries are 0.
 impl<T: Zero, U: ArrayTuple<Item = T> + Eq> Zero for U {
@@ -248,10 +285,10 @@ pub type U3 = Succ<U2>;
 #[macro_export]
 macro_rules! array {
     ($t: expr) => {
-        xmath::traits::Array1($t)
+        xmath_traits::Array1($t)
     };
     ($t: expr, $($ts: expr),*) => {
-        xmath::traits::ArrayPair($t, xmath::array!($($ts),*))
+        xmath_traits::ArrayPair($t, xmath_traits::array!($($ts),*))
     };
 }
 
@@ -270,7 +307,7 @@ macro_rules! array {
 #[macro_export]
 macro_rules! array_type {
     ($t: ty; $n: literal) => {
-        <xmath::dim!($n) as xmath::traits::TypeNum>::Array<$t>
+        <xmath_traits::dim!($n) as xmath_traits::TypeNum>::Array<$t>
     };
 }
 
@@ -339,20 +376,14 @@ impl<T: Clone + SliceLike<Item = usize>> Iterator for TupleIter<T> {
             None
         } else {
             let next = self.current.clone();
-            self.finished = increment(
-                self.current.as_mut_slice(),
-                &*self.limit.as_mut_slice(),
-            );
+            self.finished = increment(self.current.as_mut_slice(), &*self.limit.as_mut_slice());
             Some(next)
         }
     }
 }
 
 /// The element-wise minimum of two tuples.
-pub fn min<C: TypeNum>(
-    x: &C::Array<Dim>,
-    y: &C::Array<usize>,
-) -> C::Array<usize> {
+pub fn min<C: TypeNum>(x: &C::Array<Dim>, y: &C::Array<usize>) -> C::Array<usize> {
     let mut res = C::Array::<usize>::ZERO;
 
     for i in 0..C::VAL {
@@ -363,12 +394,7 @@ pub fn min<C: TypeNum>(
 }
 
 /// Returns whether `f` holds for all pairs of entries with the same index.
-pub fn pairwise<
-    C: TypeNum,
-    T: ConstZero,
-    U: ConstZero,
-    F: Fn(&T, &U) -> bool,
->(
+pub fn pairwise<C: TypeNum, T: ConstZero, U: ConstZero, F: Fn(&T, &U) -> bool>(
     x: &C::Array<T>,
     y: &C::Array<U>,
     f: F,

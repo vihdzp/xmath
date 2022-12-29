@@ -6,9 +6,8 @@
 //! itself. For instance [`Add`] corresponds to [`std::ops::Add`], and [`Neg`]
 //! corresponds to [`std::ops::Neg`], and so on. Aside from the extra guarantees
 //! that this library's traits have, the main difference is that Rust's traits
-//! pass by value, while ours pass by reference. This means ours are much more
-//! suited to working with dynamically sized types such as
-//! [`Nat`](crate::data::Nat).
+//! pass by value, while ours pass by reference. This means ours are more suited
+//! to working with dynamically sized types.
 //!
 //! We also provide extra functions such as [`double`](Add::double),
 //! which for certain types can be optimized more than the default
@@ -24,10 +23,15 @@
 //! traits have an additive or multiplicative counterpart, such as [`Add`] and
 //! [`Mul`], or [`Zero`] and [`One`].
 
-use crate::data::{aliases::NonZero, *};
+use super::*;
 use std::num::Wrapping;
 
 /// A trait for a `0` value.
+///
+/// The difference between this trait and
+/// [`num_traits::Zero`](https://docs.rs/num-traits/latest/num_traits/identities/trait.Zero.html)
+/// is that we don't require any algebraic properties on the zero value – it can
+/// be entirely arbitrary. See [`AddMonoid`] for that usage.
 ///
 /// Its multiplicative counterpart is the [`One`] trait.
 pub trait Zero: PartialEq + Sized {
@@ -35,10 +39,13 @@ pub trait Zero: PartialEq + Sized {
     fn zero() -> Self;
 
     /// Compares a value to zero.
-    ///
-    /// The default implementation is `self == &Self::zero()`.
     fn is_zero(&self) -> bool {
         self == &Self::zero()
+    }
+
+    /// Sets a value to zero.
+    fn set_zero(&mut self) {
+        *self = Self::zero();
     }
 }
 
@@ -59,11 +66,14 @@ macro_rules! impl_zero {
     };
 }
 
-impl_zero!(
-    u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, f32, f64
-);
+impl_zero!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, f32, f64);
 
 /// A trait for a `1` value.
+///
+/// The difference between this trait and
+/// [`num_traits::One`](https://docs.rs/num-traits/latest/num_traits/identities/trait.One.html)
+/// is that we don't require any algebraic properties on the one value – it can
+/// be entirely arbitrary. See [`MulMonoid`] for that usage.
 ///
 /// Its additive counterpart is the [`Zero`] trait.
 pub trait One: PartialEq + Sized {
@@ -71,10 +81,13 @@ pub trait One: PartialEq + Sized {
     fn one() -> Self;
 
     /// Compares a value to one.
-    ///
-    /// The default implementation is `self == &Self::one()`.
     fn is_one(&self) -> bool {
         self == &Self::one()
+    }
+
+    /// Sets a value to one.
+    fn set_one(&mut self) {
+        *self = Self::one();
     }
 }
 
@@ -95,9 +108,7 @@ macro_rules! impl_one {
     };
 }
 
-impl_one!(
-    u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, f32, f64
-);
+impl_one!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, f32, f64);
 
 /// Types where `0 != 1`.
 pub trait ZeroNeOne: Zero + One + Eq {}
@@ -110,9 +121,7 @@ macro_rules! impl_zero_ne_one {
     };
 }
 
-impl_zero_ne_one!(
-    u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize
-);
+impl_zero_ne_one!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
 
 /// Negation on a type.
 ///
@@ -145,8 +154,8 @@ macro_rules! impl_neg {
 }
 
 impl_neg!(
-    i8, i16, i32, i64, i128, isize, f32, f64, Wu8, Wu16, Wu32, Wu64, Wu128,
-    Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize
+    i8, i16, i32, i64, i128, isize, f32, f64, Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16,
+    Wi32, Wi64, Wi128, Wisize
 );
 
 /// Derives [`std::ops::Neg`] from [`Neg`].
@@ -157,7 +166,7 @@ macro_rules! derive_neg {
             type Output = $x;
 
             fn neg(self) -> Self::Output {
-                xmath::traits::Neg::neg(self)
+                xmath_traits::Neg::neg(self)
             }
         }
 
@@ -240,10 +249,7 @@ macro_rules! impl_add {
     };
 }
 
-impl_add!(
-    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize,
-    f32, f64
-);
+impl_add!(Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize, f32, f64);
 
 /// Derives [`std::ops::Add`] and [`std::ops::AddAssign`] from [`Add`].
 #[macro_export]
@@ -253,7 +259,7 @@ macro_rules! derive_add {
             type Output = $x;
 
             fn add(self, rhs: Self) -> Self::Output {
-                xmath::traits::Add::add(self, rhs)
+                xmath_traits::Add::add(self, rhs)
             }
         }
 
@@ -283,7 +289,7 @@ macro_rules! derive_add {
 
         impl std::ops::AddAssign<&$x> for $x {
             fn add_assign(&mut self, rhs: &Self) {
-                xmath::traits::Add::add_mut(self, &rhs);
+                xmath_traits::Add::add_mut(self, &rhs);
             }
         }
 
@@ -338,10 +344,7 @@ macro_rules! impl_mul {
     };
 }
 
-impl_mul!(
-    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize,
-    f32, f64
-);
+impl_mul!(Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize, f32, f64);
 
 /// Derives [`std::ops::Mul`] and [`std::ops::MulAssign`] from [`Mul`].
 #[macro_export]
@@ -351,7 +354,7 @@ macro_rules! derive_mul {
             type Output = $x;
 
             fn mul(self, rhs: Self) -> Self::Output {
-                xmath::traits::Mul::mul(self, rhs)
+                xmath_traits::Mul::mul(self, rhs)
             }
         }
 
@@ -381,7 +384,7 @@ macro_rules! derive_mul {
 
         impl std::ops::MulAssign<&$x> for $x {
             fn mul_assign(&mut self, rhs: &Self) {
-                xmath::traits::Mul::mul_mut(self, &rhs);
+                xmath_traits::Mul::mul_mut(self, &rhs);
             }
         }
 
@@ -405,9 +408,7 @@ macro_rules! impl_comm_add {
     };
 }
 
-impl_comm_add!(
-    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize
-);
+impl_comm_add!(Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize);
 
 /// Commutative multiplication.
 ///
@@ -421,9 +422,7 @@ macro_rules! impl_comm_mul {
     };
 }
 
-impl_comm_mul!(
-    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize
-);
+impl_comm_mul!(Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize);
 
 /// Subtraction on a type.
 ///
@@ -457,10 +456,7 @@ macro_rules! impl_sub {
     };
 }
 
-impl_sub!(
-    Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize,
-    f32, f64
-);
+impl_sub!(Wu8, Wu16, Wu32, Wu64, Wu128, Wusize, Wi8, Wi16, Wi32, Wi64, Wi128, Wisize, f32, f64);
 
 /// Derives [`std::ops::Sub`] and [`std::ops::SubAssign`] from [`Sub`].
 #[macro_export]
@@ -470,7 +466,7 @@ macro_rules! derive_sub {
             type Output = $x;
 
             fn sub(self, rhs: Self) -> Self::Output {
-                xmath::traits::Sub::sub(self, rhs)
+                xmath_traits::Sub::sub(self, rhs)
             }
         }
 
@@ -500,7 +496,7 @@ macro_rules! derive_sub {
 
         impl std::ops::SubAssign<&$x> for $x {
             fn sub_assign(&mut self, rhs: &Self) {
-                xmath::traits::Sub::sub_mut(self, &rhs);
+                xmath_traits::Sub::sub_mut(self, &rhs);
             }
         }
 
@@ -554,7 +550,7 @@ macro_rules! derive_div {
             type Output = $x;
 
             fn div(self, rhs: Self) -> Self::Output {
-                xmath::traits::Div::div(self, rhs)
+                xmath_traits::Div::div(self, rhs)
             }
         }
 
@@ -584,7 +580,7 @@ macro_rules! derive_div {
 
         impl std::ops::DivAssign<&$x> for $x {
             fn div_assign(&mut self, rhs: &Self) {
-                xmath::traits::Div::div_mut(self, &rhs);
+                xmath_traits::Div::div_mut(self, &rhs);
             }
         }
 
@@ -673,21 +669,20 @@ pub trait MulGroup: MulMonoid + Div {}
 ///
 /// - `0 * x == x * 0 == 0` for any `x`.
 /// - Nonzero elements are invertible.
-pub trait ZeroGroup: MulMonoid + IntegralDomain + Zero
-where
-    NonZero<Self>: MulGroup,
-{
+pub trait ZeroGroup: MulMonoid + IntegralDomain + Zero {
+    type Nonzero: NonZeroWrapper<Inner = Self> + MulGroup;
+
     /// Inverts a nonzero element.
     ///
     /// ## Safety
     ///
     /// The caller must ensure the element is indeed nonzero.
-    unsafe fn try_inv_unchecked(&self) -> NonZero<Self> {
-        NonZero::to_ref(self).inv()
+    unsafe fn try_inv_unchecked(&self) -> Self::Nonzero {
+        Self::Nonzero::to_ref(self).inv()
     }
 
     /// Attempts to invert an element. Returns `None` if zero.
-    fn try_inv(&self) -> Option<NonZero<Self>> {
+    fn try_inv(&self) -> Option<Self::Nonzero> {
         if self.is_zero() {
             None
         } else {
@@ -702,7 +697,7 @@ where
     ///
     /// The caller must ensure the element is indeed nonzero.
     unsafe fn try_inv_mut_unchecked(&mut self) {
-        NonZero::to_mut(self).inv_mut();
+        Self::Nonzero::to_mut(self).inv_mut();
     }
 
     /// Attempts to invert an element in place. Does nothing if zero. Returns
@@ -799,8 +794,4 @@ impl_ring!(Wu8, Wu16, Wu32, Wu64, Wu128, Wi8, Wi16, Wi32, Wi64, Wi128);
 /// A trait for fields.
 ///
 /// These are types implementing [`Ring`], [`ZeroGroup`], and [`ZeroNeOne`].
-pub trait Field: Ring + ZeroGroup + ZeroNeOne
-where
-    NonZero<Self>: MulGroup,
-{
-}
+pub trait Field: Ring + ZeroGroup + ZeroNeOne {}

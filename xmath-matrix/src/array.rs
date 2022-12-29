@@ -2,11 +2,11 @@
 //! operations.
 
 use crate::{
-    algs::matrix::{madd_gen, mmul_gen},
-    data::aliases::Transpose,
-    traits::*,
-    SliceIndex,
+    algs::{madd_gen, mmul_gen},
+    traits::*, transpose::Transpose,
 };
+use xmath_macro::SliceIndex;
+use xmath_traits::*;
 
 /// A statically-sized array of elements of a single type.
 ///
@@ -243,11 +243,7 @@ impl<T, const N: usize> List<U1> for Array<T, N> {
         self.get(index.0)
     }
 
-    unsafe fn coeff_set_unchecked_gen(
-        &mut self,
-        index: &Array1<usize>,
-        value: Self::Item,
-    ) {
+    unsafe fn coeff_set_unchecked_gen(&mut self, index: &Array1<usize>, value: Self::Item) {
         *self.as_mut().get_unchecked_mut(index.0) = value;
     }
 
@@ -353,9 +349,7 @@ where
             .unwrap_or_default()
     }
 
-    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        mut iter: J,
-    ) -> Self {
+    fn collect_row<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(mut iter: J) -> Self {
         let mut res = Self::zero();
 
         for i in 0..N {
@@ -369,9 +363,7 @@ where
         res
     }
 
-    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(
-        iter: J,
-    ) -> Self {
+    fn collect_col<I: Iterator<Item = Self::Item>, J: Iterator<Item = I>>(iter: J) -> Self {
         let mut res = Self::zero();
 
         for (j, mut iter) in iter.enumerate() {
@@ -411,10 +403,7 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
     }
 
     /// Multiplies two statically sized matrices.
-    pub fn mmul<const K: usize>(
-        &self,
-        m: &MatrixMN<T, N, K>,
-    ) -> MatrixMN<T, M, K> {
+    pub fn mmul<const K: usize>(&self, m: &MatrixMN<T, N, K>) -> MatrixMN<T, M, K> {
         mmul_gen(self, m)
     }
 
@@ -428,13 +417,11 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
     /// ## Panics
     ///
     /// Panics if both matrices don't have the same size.
-    pub fn transmute<const K: usize, const L: usize>(
-        self,
-    ) -> MatrixMN<T, K, L> {
+    pub fn transmute<const K: usize, const L: usize>(self) -> MatrixMN<T, K, L> {
         transmute_check!(M, N, K, L);
 
         // Safety: matrices of the same size have the same layout.
-        unsafe { crate::transmute_gen(self) }
+        unsafe { xmath_core::transmute_gen(self) }
     }
 
     /// Transmutes a reference to a matrix as a refrence to another matrix of
@@ -443,13 +430,11 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
     /// ## Panics
     ///
     /// Panics if both matrices don't have the same size.
-    pub fn transmute_ref<const K: usize, const L: usize>(
-        &self,
-    ) -> &MatrixMN<T, K, L> {
+    pub fn transmute_ref<const K: usize, const L: usize>(&self) -> &MatrixMN<T, K, L> {
         transmute_check!(M, N, K, L);
 
         // Safety: we've performed the size check.
-        unsafe { crate::transmute_ref(self) }
+        unsafe { xmath_core::transmute_ref(self) }
     }
 
     /// Transmutes a mutable reference to a matrix as a mutable refrence to
@@ -459,13 +444,11 @@ impl<T: Ring, const M: usize, const N: usize> MatrixMN<T, M, N> {
     /// ## Panics
     ///
     /// Panics if both matrices don't have the same size.
-    pub fn transmute_mut<const K: usize, const L: usize>(
-        &mut self,
-    ) -> &mut MatrixMN<T, K, L> {
+    pub fn transmute_mut<const K: usize, const L: usize>(&mut self) -> &mut MatrixMN<T, K, L> {
         transmute_check!(M, N, K, L);
 
         // Safety: we've performed the size check.
-        unsafe { crate::transmute_mut(self) }
+        unsafe { xmath_core::transmute_mut(self) }
     }
 }
 
@@ -480,7 +463,7 @@ impl<T> RowVec<T> {
 
     /// Gets the inner vector.
     pub fn inner(self) -> T {
-        crate::from_array(self.0)
+        xmath_core::from_array(self.0)
     }
 }
 

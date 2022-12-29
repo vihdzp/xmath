@@ -1,5 +1,7 @@
+use crate::NonZero;
+
 use super::{Int, Nat};
-use crate::{data::aliases::NonZero, traits::*};
+use xmath_traits::*;
 
 /// A variable-sized rational number.
 ///

@@ -1,4 +1,4 @@
-use crate::traits::*;
+use xmath_traits::*;
 
 /// A string in an alphabet, whose characters are given by the type `T`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
