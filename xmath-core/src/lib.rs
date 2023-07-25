@@ -28,7 +28,7 @@ pub unsafe fn transmute_mut<T: ?Sized, U>(x: &mut T) -> &mut U {
 
 /// A workaround for transmuting a generic type into another.
 ///
-/// Borrowed from https://github.com/rust-lang/rust/issues/61956.
+/// Borrowed from <https://github.com/rust-lang/rust/issues/61956>.
 ///
 /// ## Safety
 ///

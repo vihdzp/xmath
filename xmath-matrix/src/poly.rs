@@ -5,6 +5,8 @@ use crate::algs::{madd_gen, mmul_gen};
 use crate::traits::*;
 use std::cmp::Ordering::*;
 use std::fmt::Write;
+use std::ops::Index;
+use std::slice::SliceIndex;
 use xmath_traits::*;
 use xmath_traits::{array, array_type};
 
@@ -16,7 +18,7 @@ use xmath_traits::{array, array_type};
 /// order of increasing degree. The **only restriction** on this vector is that
 /// its last entry not be a `0`. This ensures every `Poly<T>` has a unique
 /// representation.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Poly<T: Zero>(Vec<T>);
 
 /// Removes leading zeros from a vector.
@@ -31,6 +33,22 @@ pub fn trim<T: Zero>(v: &mut Vec<T>) {
             break;
         }
     }
+}
+
+/// Returns whether the slice is valid for a polynomial.
+pub fn is_valid<T: Zero>(slice: &[T]) -> bool {
+    slice.last().map(T::is_zero) != Some(true)
+}
+
+/// When debug assertions are enabled, asserts that the slice is valid for a
+/// polynomial.
+macro_rules! debug_verify {
+    ($slice: expr) => {
+        debug_assert!(
+            is_valid($slice),
+            "the type invariant for polynomials has been broken"
+        )
+    };
 }
 
 /// Returns a reference to the inner slice.
@@ -55,6 +73,11 @@ impl<T: Zero> Poly<T> {
         &mut self.0
     }
 
+    /// Returns a reference to the inner vector.
+    pub fn as_vec(&self) -> &Vec<T> {
+        &self.0
+    }
+
     /// Returns a mutable reference to the inner vector.
     ///
     /// ## Safety
@@ -62,6 +85,38 @@ impl<T: Zero> Poly<T> {
     /// The last entry must remain nonzero after modifying the inner vector.
     pub unsafe fn as_vec_mut(&mut self) -> &mut Vec<T> {
         &mut self.0
+    }
+
+    /// Calls a function on the inner vector. Does not trim any leading zeros.
+    ///
+    /// This is useful when complex logic must be executed, as it guarantees
+    /// that no other methods from `Poly` will be called while the vector is in
+    /// an invalid (intermediate) state.
+    ///
+    /// When ran with debug assertions, this will perform the zero check
+    /// regardless.
+    ///
+    /// ## Safety
+    ///
+    /// The caller must guarantee that the inner vector will not end up with a
+    /// leading zero when the function finishes executing.
+    pub unsafe fn and_trim_unchecked<U, F: FnOnce(&mut Vec<T>) -> U>(&mut self, f: F) -> U {
+        let res = f(self.as_vec_mut());
+        debug_verify!(self.as_slice());
+        res
+    }
+
+    /// Calls a function on the inner vector, then trims it. This is a safe way
+    /// to modify the inner vector.
+    pub fn and_trim<U, F: FnOnce(&mut Vec<T>) -> U>(&mut self, f: F) -> U {
+        // Safety: we trim the vector.
+        unsafe {
+            self.and_trim_unchecked(|vec| {
+                let res = f(vec);
+                trim(vec);
+                res
+            })
+        }
     }
 
     /// Returns an iterator over the inner slice.
@@ -75,6 +130,7 @@ impl<T: Zero> Poly<T> {
     ///
     /// The vector must have a non-zero last entry.
     pub unsafe fn new_unchecked(v: Vec<T>) -> Self {
+        debug_verify!(v.as_slice());
         Self(v)
     }
 
@@ -93,35 +149,77 @@ impl<T: Zero> Poly<T> {
         self.as_slice().len()
     }
 
+    /// Returns the capacity of the inner vector.
+    pub fn capacity(&self) -> usize {
+        self.as_vec().capacity()
+    }
+
     /// Gets a reference to the entry in a given index.
     pub fn get(&self, index: usize) -> Option<&T> {
         self.as_slice().get(index)
     }
 
-    /// Sets a given index with a given value.
-    pub fn set(&mut self, index: usize, value: T) {
+    pub fn modify<U, F: FnOnce(&mut T) -> U>(&mut self, index: usize, f: F) -> U {
         match self.len().cmp(&(index + 1)) {
             // Safety: the leading coefficient isn't modified.
-            Greater => unsafe { self.as_slice_mut()[index] = value },
+            Greater => unsafe { f(&mut self.as_slice_mut()[index]) },
 
-            // Safety: we trim the vector at the end.
-            Equal => unsafe {
-                let vec = self.as_vec_mut();
-                vec[index] = value;
-                trim(vec);
-            },
+            Equal => self.and_trim(|vec| f(&mut vec[index])),
 
-            // Safety: the leading coefficient is not zero.
             Less => {
+                let mut value = T::zero();
+                let res = f(&mut value);
+
                 if !value.is_zero() {
+                    // Safety: the leading coefficient is not zero.
                     unsafe {
-                        let vec = self.as_vec_mut();
-                        vec.resize_with(index, T::zero);
-                        vec.push(value);
+                        self.and_trim_unchecked(|vec| {
+                            vec.resize_with(index, T::zero);
+                            vec.push(value);
+                        });
                     }
                 }
+
+                res
             }
         }
+    }
+
+    /// Sets a given index with a given value.
+    pub fn set(&mut self, index: usize, value: T) {
+        self.modify(index, |x| *x = value);
+    }
+
+    /// Pushes a value at the end of the underlying vector. A no-op in the case
+    /// of zero.
+    pub fn push(&mut self, value: T) {
+        if !value.is_zero() {
+            // Safety: we're not pushing 0.
+            unsafe {
+                self.as_vec_mut().push(value);
+            }
+        }
+    }
+
+    /// Return and remove the leading coefficient. We return `0` in the case of
+    /// the zero polynomial.
+    pub fn pop(&mut self) -> T {
+        self.and_trim(|vec| vec.pop()).unwrap_or_else(T::zero)
+    }
+
+    /// Clears the underyling vector.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    /// Returns a reference to the constant coefficient.
+    pub fn first(&self) -> Option<&T> {
+        self.0.first()
+    }
+
+    /// Returns a reference to the leading coefficient.
+    pub fn last(&self) -> Option<&T> {
+        self.0.last()
     }
 
     /// The degree of the polynomial. Returns `None` for the zero polynomial.
@@ -135,17 +233,6 @@ impl<T: Zero> Poly<T> {
     /// Returns whether the underlying slice is empty.
     pub fn is_empty(&self) -> bool {
         self.as_slice().is_empty()
-    }
-
-    /// Return and remove the leading coefficient. We return `0` in the case of
-    /// the zero polynomial.
-    pub fn pop(&mut self) -> T {
-        // Safety: we trim the vector at the end.
-        unsafe {
-            let x = self.as_vec_mut().pop();
-            trim(self.as_vec_mut());
-            x.unwrap_or_else(T::zero)
-        }
     }
 
     pub fn pairwise<U: Zero, V: Zero, F: FnMut(&T, &U) -> V>(
@@ -181,27 +268,25 @@ impl<T: Zero> Poly<T> {
     }
 
     pub fn pairwise_mut<U: Zero, F: FnMut(&mut T, &U)>(&mut self, rhs: &Poly<U>, mut f: F) {
-        unsafe {
-            if self.len() < rhs.len() {
-                self.as_vec_mut().resize_with(rhs.len(), T::zero);
+        self.and_trim(|vec| {
+            if vec.len() < rhs.len() {
+                vec.resize_with(rhs.len(), T::zero);
 
                 for i in 0..rhs.len() {
-                    f(&mut self.as_slice_mut()[i], &rhs.as_ref()[i]);
+                    f(&mut vec[i], &rhs.as_ref()[i]);
                 }
             } else {
                 for i in 0..rhs.len() {
-                    f(&mut self.as_slice_mut()[i], &rhs.as_ref()[i]);
+                    f(&mut vec[i], &rhs.as_ref()[i]);
                 }
 
                 let z = U::zero();
 
-                for i in rhs.len()..self.len() {
-                    f(&mut self.as_slice_mut()[i], &z);
+                for i in rhs.len()..vec.len() {
+                    f(&mut vec[i], &z);
                 }
             }
-
-            trim(self.as_vec_mut());
-        }
+        });
     }
 
     /// Formats a polynomial, with a specified variable name. Defaults to `x`.
@@ -234,9 +319,21 @@ impl<T: Zero> Poly<T> {
     }
 }
 
+impl<T: Zero> Extend<T> for Poly<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        self.and_trim(|vec| vec.extend(iter));
+    }
+}
+
 impl<T: Zero> From<Vec<T>> for Poly<T> {
     fn from(v: Vec<T>) -> Self {
         Self::new(v)
+    }
+}
+
+impl<T: Zero> From<Poly<T>> for Vec<T> {
+    fn from(p: Poly<T>) -> Self {
+        p.0
     }
 }
 
@@ -250,6 +347,15 @@ impl<T: Zero> IntoIterator for Poly<T> {
     }
 }
 
+impl<'a, T: Zero> IntoIterator for &'a Poly<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 /// Calls [`Poly::fmt_with`] with the default variable name `x`.
 impl<T: Zero + std::fmt::Display> std::fmt::Display for Poly<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -257,10 +363,13 @@ impl<T: Zero + std::fmt::Display> std::fmt::Display for Poly<T> {
     }
 }
 
-impl<T: Zero> std::ops::Index<usize> for Poly<T> {
-    type Output = T;
+impl<T: Zero, I> Index<I> for Poly<T>
+where
+    I: SliceIndex<[T]>,
+{
+    type Output = I::Output;
 
-    fn index(&self, index: usize) -> &Self::Output {
+    fn index(&self, index: I) -> &Self::Output {
         &self.as_slice()[index]
     }
 }
@@ -289,6 +398,7 @@ impl<T: Zero> Poly<T> {
     ///
     /// The caller must verify `c` is indeed nonzero.
     pub unsafe fn cxn_unchecked(c: T, n: usize) -> Self {
+        debug_assert!(!c.is_zero(), "c equals zero");
         let mut res = Vec::new();
         res.resize_with(n, T::zero);
         res.push(c);
@@ -425,26 +535,31 @@ impl<T: Zero + Clone> Poly<T> {
     ///
     /// For this to give a valid polynomial, we must have `g(x) == 0` only when
     /// `x == 0`.
-    unsafe fn add_sub_mut<F: Fn(&mut T, &T), G: Fn(&T) -> T>(&mut self, x: &Self, f: F, g: G) {
-        match self.len().cmp(&x.len()) {
+    unsafe fn add_sub_mut<F: Fn(&mut T, &T), G: Fn(&T) -> T>(&mut self, other: &Self, f: F, g: G) {
+        match self.len().cmp(&other.len()) {
+            // Safety: the leading coefficient of the result is g of the leading
+            // coefficient of `other`, which we assume nonzero.
             Less => {
                 for i in 0..self.len() {
-                    f(&mut self.as_vec_mut()[i], &x[i]);
+                    f(&mut self.as_vec_mut()[i], &other[i]);
                 }
-                for i in self.len()..x.len() {
-                    self.as_vec_mut().push(g(&x[i]));
+                for i in self.len()..other.len() {
+                    self.as_vec_mut().push(g(&other[i]));
                 }
             }
-            Equal => {
-                for i in 0..self.len() {
-                    f(&mut self.as_vec_mut()[i], &x[i]);
-                }
 
-                trim(self.as_vec_mut())
+            Equal => {
+                self.and_trim(|vec| {
+                    for i in 0..vec.len() {
+                        f(&mut vec[i], &other[i]);
+                    }
+                });
             }
+
+            // Safety: the leading coefficient is not modified.
             Greater => {
-                for i in 0..x.len() {
-                    f(&mut self.as_vec_mut()[i], &x[i]);
+                for i in 0..other.len() {
+                    f(&mut self.as_vec_mut()[i], &other[i]);
                 }
             }
         }
@@ -452,14 +567,14 @@ impl<T: Zero + Clone> Poly<T> {
 }
 
 impl<T: AddMonoid> Add for Poly<T> {
-    fn add(&self, x: &Self) -> Self {
+    fn add(&self, rhs: &Self) -> Self {
         // Safety: trivial.
-        unsafe { self.add_sub(x, T::add, Clone::clone) }
+        unsafe { self.add_sub(rhs, T::add, Clone::clone) }
     }
 
-    fn add_mut(&mut self, x: &Self) {
+    fn add_mut(&mut self, rhs: &Self) {
         // Safety: trivial.
-        unsafe { self.add_sub_mut(x, T::add_mut, Clone::clone) }
+        unsafe { self.add_sub_mut(rhs, T::add_mut, Clone::clone) }
     }
 
     fn double(&self) -> Self {
@@ -471,15 +586,12 @@ impl<T: AddMonoid> Add for Poly<T> {
     }
 
     fn double_mut(&mut self) {
-        // Safety: we trim the vector at the end.
-        unsafe {
-            for x in self.as_slice_mut() {
+        // `x != 0` does not imply `x + x != 0`.
+        self.and_trim(|vec| {
+            for x in vec {
                 x.double_mut();
             }
-
-            // `x != 0` does not imply `x + x != 0`.
-            trim(self.as_vec_mut());
-        }
+        });
     }
 }
 
@@ -539,13 +651,11 @@ impl<T: Zero> List<U1> for Poly<T> {
     }
 
     fn map_mut<F: Fn(&mut Self::Item)>(&mut self, f: F) {
-        // Safety: we trim the vector at the end.
-        unsafe {
-            for i in 0..self.len() {
-                f(&mut self.as_slice_mut()[i]);
+        self.and_trim(|vec| {
+            for x in vec {
+                f(x);
             }
-            trim(self.as_vec_mut());
-        }
+        });
     }
 }
 
@@ -554,26 +664,15 @@ impl<T: Ring> Module<U1> for Poly<T> {
         if x.is_zero() {
             Self::zero()
         } else {
-            self.as_slice()
-                .iter()
-                .map(|y| y.mul(x))
-                .collect::<Vec<_>>()
-                .into()
+            self.map(|y| y.mul(x))
         }
     }
 
     fn smul_mut(&mut self, x: &T) {
         if x.is_zero() {
-            *self = Self::zero();
+            self.set_zero();
         } else {
-            // Safety: we trim the vector at the end.
-            unsafe {
-                for y in self.as_slice_mut() {
-                    y.mul_mut(x);
-                }
-
-                trim(self.as_vec_mut())
-            }
+            self.map_mut(|y| y.mul_mut(x));
         }
     }
 
@@ -613,24 +712,9 @@ impl<C: TypeNum, V: List<C> + Zero> List<Succ<C>> for Poly<V> {
         index: &ArrayPair<usize, C::Array<usize>>,
         value: Self::Item,
     ) {
-        match self.len().cmp(&(index.0 + 1)) {
-            // Safety: the leading coefficient isn't modified.
-            Greater => self.as_slice_mut()[index.0].coeff_set_unchecked_gen(&index.1, value),
-
-            // Safety: we trim the vector at the end.
-            Equal => {
-                let vec = self.as_vec_mut();
-                vec[index.0].coeff_set_unchecked_gen(&index.1, value);
-                trim(vec);
-            }
-
-            // Safety: the leading coefficient is not zero.
-            Less => {
-                let mut inner = V::zero();
-                inner.coeff_set_unchecked_gen(&index.1, value);
-                self.set(index.0, inner);
-            }
-        }
+        self.modify(index.0, |inner| {
+            inner.coeff_set_unchecked_gen(&index.1, value)
+        });
     }
 
     fn map<F: Fn(&Self::Item) -> Self::Item>(&self, f: F) -> Self {
@@ -638,14 +722,11 @@ impl<C: TypeNum, V: List<C> + Zero> List<Succ<C>> for Poly<V> {
     }
 
     fn map_mut<F: Fn(&mut Self::Item)>(&mut self, f: F) {
-        // Safety: we trim the vector at the end.
-        unsafe {
-            let vec = self.as_vec_mut();
+        self.and_trim(|vec| {
             for x in vec.iter_mut() {
                 x.map_mut(&f);
             }
-            trim(vec);
-        }
+        });
     }
 }
 

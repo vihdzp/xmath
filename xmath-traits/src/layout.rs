@@ -1,4 +1,15 @@
 //! Traits relating to the layout of types.
+//!
+//! When we say two types have the same layout, we mean the following:
+//!
+//! - They have the same size.
+//! - They have the same alignment.
+//! - The same bytes are valid for both (considering any runtime invariants).
+//!
+//! To guarantee the first two conditions, the type must have been tagged using
+//! `repr`. The last condition is up to the implementor.
+
+use std::ops::Range;
 
 use xmath_core::{transmute_gen, transmute_mut, transmute_ref};
 
@@ -25,13 +36,23 @@ pub trait SliceLike {
     /// Returns a mutable reference to the underlying slice.
     fn as_mut_slice(&mut self) -> &mut [Self::Item];
 
-    /// A default [`Index`](std::ops::Index) implementation.
+    /// A default [`Index<usize>`](std::ops::Index) implementation.
     fn index(&self, index: usize) -> &Self::Item {
         &self.as_slice()[index]
     }
 
-    /// A default [`IndexMut`](std::ops::IndexMut) implementation.
+    /// A default [`IndexMut<usize>`](std::ops::IndexMut) implementation.
     fn index_mut(&mut self, index: usize) -> &mut Self::Item {
+        &mut self.as_mut_slice()[index]
+    }
+
+    /// A default [`Index<Range<usize>>`](std::ops::Index) implementation.
+    fn index_range(&self, index: Range<usize>) -> &[Self::Item] {
+        &self.as_slice()[index]
+    }
+
+    /// A default [`IndexMut<Range<usize>>`](std::ops::IndexMut) implementation.
+    fn index_range_mut(&mut self, index: Range<usize>) -> &mut [Self::Item] {
         &mut self.as_mut_slice()[index]
     }
 }

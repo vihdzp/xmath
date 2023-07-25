@@ -13,8 +13,6 @@
 //! Correctly managing these two kinds of lists under the same interface is a
 //! subtle matter. See [`List`] for more details.
 
-use super::*;
-use std::fmt::Write;
 use xmath_traits::*;
 
 /// Represents a structure with a notion of coordinates or coefficients.

@@ -3,7 +3,8 @@
 
 use crate::{
     algs::{madd_gen, mmul_gen},
-    traits::*, transpose::Transpose,
+    traits::*,
+    transpose::Transpose,
 };
 use xmath_macro::SliceIndex;
 use xmath_traits::*;
@@ -14,7 +15,7 @@ use xmath_traits::*;
 ///
 /// This stores a single `[T; N]` field. The layout is guaranteed to be the
 /// same, and the allowed values are equal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, SliceIndex, ArrayFromIter)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, SliceIndex, ArrayFromIter)]
 #[repr(transparent)]
 pub struct Array<T, const N: usize>(pub [T; N]);
 
@@ -45,6 +46,15 @@ impl<T, const N: usize> IntoIterator for Array<T, N> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<'a, T, const N: usize> IntoIterator for &'a Array<T, N> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 
@@ -93,6 +103,8 @@ impl<T, const N: usize> Array<T, N> {
         Self::new(std::array::from_fn(f))
     }
 
+    /// Initializes the array from the iterator, filling in with zeros if the
+    /// iterator returns `None`.
     pub fn from_iter_zero<I: IntoIterator<Item = T>>(iter: I) -> Self
     where
         T: Zero,
@@ -142,6 +154,8 @@ impl<T: One, const N: usize> One for Array<T, N> {
         self.iter().all(T::is_one)
     }
 }
+
+// impl<T: ZeroNeOne, const N: usize> ZeroNeOne for Array<T, N + 1> {}
 
 /// Element-wise negation.
 impl<T: Neg, const N: usize> Neg for Array<T, N> {
@@ -233,6 +247,8 @@ impl<T: MulMonoid, const N: usize> MulMonoid for Array<T, N> {}
 impl<T: AddGroup, const N: usize> AddGroup for Array<T, N> {}
 impl<T: MulGroup, const N: usize> MulGroup for Array<T, N> {}
 impl<T: Ring, const N: usize> Ring for Array<T, N> {}
+
+impl<T: IntegralDomain> IntegralDomain for Array<T, 1> {}
 
 /// Arrays are a one-dimensional list.
 impl<T, const N: usize> List<U1> for Array<T, N> {

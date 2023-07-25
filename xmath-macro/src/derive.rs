@@ -31,6 +31,8 @@ pub fn transparent(name: Ident) -> TokenStream {
 }
 
 /// Contains the code for the [`SliceIndex`](crate::SliceIndex) derive macro.
+/// 
+/// TODO: use `SliceIndex`
 pub fn slice_index(input: DeriveInput) -> TokenStream {
     let name = input.ident;
     let (impl_gens, ty_gens, where_clause) = input.generics.split_for_impl();
@@ -47,6 +49,21 @@ pub fn slice_index(input: DeriveInput) -> TokenStream {
         impl #impl_gens std::ops::IndexMut<usize> for #name #ty_gens #where_clause {
             fn index_mut(&mut self, index: usize) -> &mut Self::Output {
                 xmath_traits::SliceLike::index_mut(self, index)
+            }
+        }
+
+        
+        impl #impl_gens std::ops::Index<std::ops::Range<usize>> for #name #ty_gens #where_clause {
+            type Output = [<Self as xmath_traits::SliceLike>::Item];
+
+            fn index(&self, index: std::ops::Range<usize>) -> &Self::Output {
+                xmath_traits::SliceLike::index_range(self, index)
+            }
+        }
+        
+        impl #impl_gens std::ops::IndexMut<std::ops::Range<usize>> for #name #ty_gens #where_clause {
+            fn index_mut(&mut self, index: std::ops::Range<usize>) -> &mut Self::Output {
+                xmath_traits::SliceLike::index_range_mut(self, index)
             }
         }
     }
