@@ -1,5 +1,4 @@
-
-use crate::{data::aliases::Additive, };
+use crate::data::aliases::Additive;
 use xmath_traits::*;
 
 /// Multiplication by doubling.

@@ -670,6 +670,7 @@ pub trait MulGroup: MulMonoid + Div {}
 /// - `0 * x == x * 0 == 0` for any `x`.
 /// - Nonzero elements are invertible.
 pub trait ZeroGroup: MulMonoid + IntegralDomain + Zero {
+    /// The type of nonzero elements of this type.
     type Nonzero: NonZeroWrapper<Inner = Self> + MulGroup;
 
     /// Inverts a nonzero element.
